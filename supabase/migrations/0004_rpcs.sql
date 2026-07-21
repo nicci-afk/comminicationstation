@@ -897,7 +897,7 @@ begin
     select * into m from pgmq.metrics(q);
     v_queues := v_queues || jsonb_build_object(
       'queue', q, 'length', m.queue_length,
-      'oldest_msg_age_sec', coalesce(extract(epoch from m.oldest_msg_age)::int, 0));
+      'oldest_msg_age_sec', coalesce(m.oldest_msg_age_sec, 0));
   end loop;
   select count(*) into v_dead from public.jobs_dead where created_at > now() - interval '7 days';
   select coalesce(jsonb_agg(jsonb_build_object(
