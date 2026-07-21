@@ -9,18 +9,14 @@
 import gmailOauthStart from "./gmail-oauth-start.ts";
 import gmailOauthCallback from "./gmail-oauth-callback.ts";
 import gmailPush from "./gmail-push.ts";
-import gmailSyncWorker from "./gmail-sync-worker.ts";
 import gmailGetBody from "./gmail-get-body.ts";
-import triageWorker from "./triage-worker.ts";
 import pipelineStart from "./pipeline-start.ts";
-import pipelineWorker from "./pipeline-worker.ts";
 import draftReply from "./draft-reply.ts";
 import interactionUpdate from "./interaction-update.ts";
 import twilioInbound from "./twilio-inbound.ts";
 import twilioSend from "./twilio-send.ts";
 import twilioProvision from "./twilio-provision.ts";
 import adminConfig from "./admin-config.ts";
-import digestWorker from "./digest-worker.ts";
 import bootstrap from "./bootstrap.ts";
 import { corsHeaders } from "./_shared/util.ts";
 
@@ -30,18 +26,14 @@ const routes: Record<string, Handler> = {
   "gmail-oauth-start": gmailOauthStart,
   "gmail-oauth-callback": gmailOauthCallback,
   "gmail-push": gmailPush,
-  "gmail-sync-worker": gmailSyncWorker,
   "gmail-get-body": gmailGetBody,
-  "triage-worker": triageWorker,
   "pipeline-start": pipelineStart,
-  "pipeline-worker": pipelineWorker,
   "draft-reply": draftReply,
   "interaction-update": interactionUpdate,
   "twilio-inbound": twilioInbound,
   "twilio-send": twilioSend,
   "twilio-provision": twilioProvision,
   "admin-config": adminConfig,
-  "digest-worker": digestWorker,
   "bootstrap": bootstrap,
 };
 

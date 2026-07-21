@@ -9,7 +9,7 @@ _Last updated: 2026-07-21 (initial build session)._
 | Repo / branch | active | `nicci-afk/comminicationstation`, branch `claude/message-command-center-0x3qgm` |
 | Supabase project | LIVE, migrations applied | `bgpjpomqrnwsdmrofudb` (us-east-2), org "AgentEdge" (billing container only — zero connection to the AgentEdge app) |
 | Database | 27 tables, RLS on all, 5 deny-all service tables, pgmq queues (sync/triage/pipeline/digest), 6 pg_cron jobs | `supabase/migrations/0001–0005` |
-| Backend | single routed edge function `api`, verify_jwt=false with per-route auth in code | `supabase/functions/api/` → `https://bgpjpomqrnwsdmrofudb.supabase.co/functions/v1/api/<route>` |
+| Backend | two routed edge functions: `api` (user+webhook routes) and `workers` (queue drainers), verify_jwt=false with per-route auth in code | `supabase/functions/api/` → `https://bgpjpomqrnwsdmrofudb.supabase.co/functions/v1/api/<route>` |
 | Frontend | LIVE on Vercel (project `message-command-center`) | https://message-command-center-iota.vercel.app |
 | Pipeline contracts | zod schemas + code QC gates for the three skills | `supabase/functions/api/_shared/schemas/` (specs: `docs/skills/`) |
 
