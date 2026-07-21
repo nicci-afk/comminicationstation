@@ -55,12 +55,14 @@ Twilio SMS/WhatsApp ──webhook──▶ /api/twilio-inbound ─────�
 ## Repository layout
 
 ```
-docs/skills/              the three pipeline skill specs (source of truth)
-docs/runbooks/            Google Cloud setup, Twilio/WhatsApp go-live, troubleshooting
-supabase/migrations/      full schema: RLS on every table, RPCs, queues, cron
-supabase/functions/api/   single routed edge function (all 16 backend routes)
-  _shared/schemas/        the skill contracts as zod + code-enforced QC gates
-apps/web/                 Vite + React SPA (Tailwind, TanStack Query, supabase-js)
+docs/skills/                  the three pipeline skill specs (source of truth)
+docs/runbooks/                Google Cloud setup, Twilio/WhatsApp go-live, troubleshooting
+supabase/migrations/          full schema: RLS on every table, RPCs, queues, cron
+supabase/functions/api/       routed edge function: user routes + webhooks + bootstrap
+  _shared/schemas/            the skill contracts as zod + code-enforced QC gates
+supabase/functions/workers/   routed edge function: the four queue-drainer workers
+tests/qc-gates.test.ts        fixture tests exercising the exact deployed QC-gate code
+apps/web/                     Vite + React SPA (Tailwind, TanStack Query, supabase-js)
 ```
 
 ## Security model
@@ -92,5 +94,7 @@ its full output is stored and reused. Every call is metered in
 cd apps/web && npm install && npm run dev
 ```
 Migrations live in `supabase/migrations/` (applied via Supabase MCP/CLI).
-The edge function deploys from `supabase/functions/api/`.
+The edge functions deploy from `supabase/functions/api/` and
+`supabase/functions/workers/` (workers/_shared is a symlink into api/_shared).
+Pipeline contract tests: `npm install --no-save zod tsx && npx tsx tests/qc-gates.test.ts`.
 ```

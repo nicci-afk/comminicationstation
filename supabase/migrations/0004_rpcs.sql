@@ -314,6 +314,7 @@ begin
     from public.contact_channels ch
     join public.contacts c on c.id = ch.contact_id
     where ch.user_id = v_user and ch.channel_type = 'email' and ch.canonical_value = v_from;
+    v_is_vip := coalesce(v_is_vip, false);
     if v_contact_id is null then
       insert into public.contacts (user_id, display_name, kind)
       values (v_user, coalesce(nullif(p ->> 'from_name', ''), v_from),
@@ -482,8 +483,8 @@ begin
   end if;
 
   -- priority scoring (base 50, clamped 0..100, reasons recorded for trust UX)
-  if v_is_vip then v_priority := v_priority + 25; v_reasons := v_reasons || 'VIP contact'; end if;
-  if v_direct then v_priority := v_priority + 10; v_reasons := v_reasons || 'addressed directly to you'; end if;
+  if v_is_vip then v_priority := v_priority + 25; v_reasons := v_reasons || array['VIP contact']; end if;
+  if v_direct then v_priority := v_priority + 10; v_reasons := v_reasons || array['addressed directly to you']; end if;
   v_priority := v_priority + case v_category
     when 'urgent' then 20 when 'needs_reply' then 10 when 'scheduling' then 8
     when 'promotion' then -25 when 'newsletter' then -25 when 'notification' then -15
@@ -609,6 +610,7 @@ begin
   select c.id, c.is_vip into v_contact_id, v_is_vip
   from public.contact_channels ch join public.contacts c on c.id = ch.contact_id
   where ch.user_id = v_user and ch.channel_type = 'phone' and ch.canonical_value = v_phone;
+  v_is_vip := coalesce(v_is_vip, false);
   if v_contact_id is null then
     insert into public.contacts (user_id, display_name, kind)
     values (v_user, coalesce(nullif(p ->> 'counterparty_name', ''), v_phone), 'human')
@@ -768,7 +770,7 @@ begin
   perform set_config('app.transition_reason', 'follow_up_due_nudge', true);
   update public.queue_items
   set state = 'needs_attention',
-      priority_reasons = priority_reasons || 'no reply received — consider a nudge',
+      priority_reasons = priority_reasons || array['no reply received — consider a nudge'],
       follow_up_at = null,
       waiting_since = now()
   where state = 'awaiting_reply' and follow_up_at <= now();
@@ -776,7 +778,7 @@ begin
   update public.queue_items
   set escalated = true,
       priority = least(100, priority + 15),
-      priority_reasons = priority_reasons || 'overdue: past its response window'
+      priority_reasons = priority_reasons || array['overdue: past its response window']
   where state = 'needs_attention' and not escalated and sla_due_at <= now();
 end;
 $$;
