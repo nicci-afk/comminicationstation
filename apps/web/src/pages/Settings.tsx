@@ -4,7 +4,7 @@ import { api, supabase } from "../lib/supabase";
 import { fmtWhen, useBusinesses, useProfile } from "../lib/hooks";
 import type { GmailAccount } from "../lib/types";
 
-const TABS = ["Connections", "API keys", "Businesses & rules", "Spend", "Digest", "System health"] as const;
+const TABS = ["Account", "Connections", "API keys", "Businesses & rules", "Spend", "Digest", "System health"] as const;
 
 export default function Settings() {
   const [tab, setTab] = useState<(typeof TABS)[number]>("Connections");
@@ -21,6 +21,7 @@ export default function Settings() {
         ))}
       </div>
       <div className="mt-6 space-y-4">
+        {tab === "Account" && <Account />}
         {tab === "Connections" && <Connections />}
         {tab === "API keys" && <ApiKeys />}
         {tab === "Businesses & rules" && <Businesses />}
@@ -39,6 +40,76 @@ function Card({ title, children, subtitle }: { title: string; subtitle?: string;
       {subtitle && <p className="text-xs text-slate-500 mt-0.5">{subtitle}</p>}
       <div className="mt-3">{children}</div>
     </div>
+  );
+}
+
+// ------------------------------------------------------------- Account
+
+function Account() {
+  const { data: profile } = useProfile();
+  const [pw, setPw] = useState("");
+  const [pw2, setPw2] = useState("");
+  const [msg, setMsg] = useState("");
+  const [err, setErr] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  async function changePassword(e: FormEvent) {
+    e.preventDefault();
+    setMsg("");
+    setErr("");
+    if (pw.length < 10) { setErr("Use at least 10 characters."); return; }
+    if (pw !== pw2) { setErr("The two passwords don't match."); return; }
+    setBusy(true);
+    const { error } = await supabase.auth.updateUser({ password: pw });
+    if (error) setErr(error.message);
+    else { setMsg("Password updated — use it next time you sign in."); setPw(""); setPw2(""); }
+    setBusy(false);
+  }
+
+  return (
+    <>
+      <Card title="Signed in as" subtitle={profile?.email ?? ""}>
+        <p className="text-sm text-slate-600">
+          Sign out any time from the sidebar. Only invited household accounts can log in.
+        </p>
+      </Card>
+      <Card title="Change password" subtitle="Takes effect immediately; no email involved.">
+        <form onSubmit={changePassword} className="space-y-3 max-w-sm">
+          <input
+            type="password" required placeholder="New password (10+ characters)" value={pw}
+            autoComplete="new-password"
+            onChange={(e) => setPw(e.target.value)}
+            className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm"
+          />
+          <input
+            type="password" required placeholder="Repeat new password" value={pw2}
+            autoComplete="new-password"
+            onChange={(e) => setPw2(e.target.value)}
+            className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm"
+          />
+          {err && <p className="text-sm text-red-600">{err}</p>}
+          {msg && <p className="text-sm text-emerald-600">{msg}</p>}
+          <button
+            disabled={busy}
+            className="bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg px-4 py-2 text-sm font-medium disabled:opacity-50"
+          >
+            {busy ? "Saving…" : "Update password"}
+          </button>
+        </form>
+      </Card>
+      <Card
+        title="Magic-link sign-in"
+        subtitle="Passwordless login from the sign-in screen."
+      >
+        <p className="text-sm text-slate-600">
+          The login page can email you a one-tap sign-in link instead of asking for a
+          password. For the link to land back in this app, the Supabase project must have
+          its <span className="font-medium">Site URL</span> set to this app's address
+          (Dashboard → Authentication → URL Configuration), and custom SMTP configured
+          for reliable delivery. One-time setup, done in the Supabase dashboard.
+        </p>
+      </Card>
+    </>
   );
 }
 
