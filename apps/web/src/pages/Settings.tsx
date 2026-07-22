@@ -525,26 +525,97 @@ function Digest() {
   });
   if (!profile) return null;
   return (
-    <Card title="Morning digest" subtitle="One email a day with what needs you — not constant pings. Timezone-aware for travel.">
-      <div className="flex items-center gap-3 text-sm">
-        <label className="flex items-center gap-2">
-          <input type="checkbox" checked={profile.digest_enabled}
-            onChange={(e) => save.mutate({ digest_enabled: e.target.checked })} />
-          Enabled
-        </label>
-        <span>at</span>
-        <select value={profile.digest_hour} onChange={(e) => save.mutate({ digest_hour: Number(e.target.value) })}
-          className="border border-slate-300 rounded-lg px-2 py-1.5 bg-white">
-          {Array.from({ length: 24 }, (_, h) => (
-            <option key={h} value={h}>{h === 0 ? "12 AM" : h < 12 ? `${h} AM` : h === 12 ? "12 PM" : `${h - 12} PM`}</option>
-          ))}
-        </select>
-        <input
-          defaultValue={profile.timezone}
-          onBlur={(e) => e.target.value !== profile.timezone && save.mutate({ timezone: e.target.value })}
-          className="border border-slate-300 rounded-lg px-2 py-1.5 flex-1"
-          placeholder="America/Chicago"
-        />
+    <>
+      <Card title="Morning digest" subtitle="One email a day with what needs you — not constant pings. Timezone-aware for travel.">
+        <div className="flex items-center gap-3 text-sm">
+          <label className="flex items-center gap-2">
+            <input type="checkbox" checked={profile.digest_enabled}
+              onChange={(e) => save.mutate({ digest_enabled: e.target.checked })} />
+            Enabled
+          </label>
+          <span>at</span>
+          <select value={profile.digest_hour} onChange={(e) => save.mutate({ digest_hour: Number(e.target.value) })}
+            className="border border-slate-300 rounded-lg px-2 py-1.5 bg-white">
+            {Array.from({ length: 24 }, (_, h) => (
+              <option key={h} value={h}>{h === 0 ? "12 AM" : h < 12 ? `${h} AM` : h === 12 ? "12 PM" : `${h - 12} PM`}</option>
+            ))}
+          </select>
+          <input
+            defaultValue={profile.timezone}
+            onBlur={(e) => e.target.value !== profile.timezone && save.mutate({ timezone: e.target.value })}
+            className="border border-slate-300 rounded-lg px-2 py-1.5 flex-1"
+            placeholder="America/Chicago"
+          />
+        </div>
+      </Card>
+      <ResendCard />
+    </>
+  );
+}
+
+function ResendCard() {
+  const qc = useQueryClient();
+  const [key, setKey] = useState("");
+  const [from, setFrom] = useState("");
+  const [err, setErr] = useState("");
+  const [msg, setMsg] = useState("");
+  const { data: cfg } = useQuery({
+    queryKey: ["admin-config"],
+    queryFn: async () => await api<Record<string, unknown>>("admin-config"),
+  });
+  const setCfg = useMutation({
+    mutationFn: async (args: { key: string; value: string }) => await api("admin-config", args),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["admin-config"] });
+      setErr(""); setMsg("Saved."); setKey("");
+    },
+    onError: (e) => { setMsg(""); setErr((e as Error).message); },
+  });
+  return (
+    <Card
+      title="Resend (email delivery)"
+      subtitle="Powers the morning digest. Stored in Vault — never visible to the browser once saved."
+    >
+      <div className="space-y-3 max-w-lg text-sm">
+        <div className="flex items-center gap-2">
+          <input
+            type="password" placeholder={cfg?.resend_api_key ? "Key is set — paste to replace" : "Resend API key (re_…)"}
+            value={key} onChange={(e) => setKey(e.target.value)} autoComplete="off"
+            className="flex-1 border border-slate-300 rounded-lg px-3 py-2"
+          />
+          <button
+            disabled={key.trim().length < 8}
+            onClick={() => setCfg.mutate({ key: "resend_api_key", value: key.trim() })}
+            className="bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg px-3 py-2 font-medium disabled:opacity-50"
+          >
+            Save key
+          </button>
+          <span className={`text-xs ${cfg?.resend_api_key ? "text-emerald-600" : "text-slate-400"}`}>
+            {cfg?.resend_api_key ? "set" : "not set"}
+          </span>
+        </div>
+        <div className="flex items-center gap-2">
+          <input
+            placeholder={'From address, e.g. Command Center <digest@travelghr.com>'}
+            defaultValue={(cfg?.digest_from_email as string) ?? ""}
+            onChange={(e) => setFrom(e.target.value)}
+            className="flex-1 border border-slate-300 rounded-lg px-3 py-2"
+          />
+          <button
+            disabled={!from.trim()}
+            onClick={() => setCfg.mutate({ key: "digest_from_email", value: from.trim() })}
+            className="bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg px-3 py-2 font-medium disabled:opacity-50"
+          >
+            Save from
+          </button>
+        </div>
+        <p className="text-xs text-slate-500">
+          The From address must be on a domain verified in your Resend account. The same
+          Resend key can also power login emails (magic links) — that part is pasted once
+          into the Supabase dashboard's SMTP settings, not here.
+        </p>
+        {err && <p className="text-red-600">{err}</p>}
+        {msg && <p className="text-emerald-600">{msg}</p>}
       </div>
     </Card>
   );
