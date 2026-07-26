@@ -1,4 +1,4 @@
-import { FormEvent, useState } from "react";
+import { CSSProperties, FormEvent, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, supabase } from "../lib/supabase";
 import { fmtWhen, useBusinesses, useProfile } from "../lib/hooks";
@@ -202,19 +202,37 @@ function ConfigInput({ label, configKey, current, onSave, secret }: {
   label: string; configKey: string; current: string; onSave: (v: string) => void; secret?: boolean;
 }) {
   const [val, setVal] = useState("");
+  const [show, setShow] = useState(false);
   return (
     <div className="mt-2">
       <label className="text-xs text-slate-500">{label}</label>
       <div className="flex gap-2 mt-1">
         <input
-          type={secret ? "password" : "text"}
+          type="text"
           placeholder={current || "not set"}
           value={val}
           onChange={(e) => setVal(e.target.value)}
-          autoComplete={secret ? "new-password" : "off"}
-          className="flex-1 border border-slate-300 rounded-lg px-3 py-1.5 text-sm"
+          autoComplete="off"
+          autoCorrect="off"
+          autoCapitalize="off"
+          spellCheck={false}
+          data-lpignore="true"
+          data-form-type="other"
+          style={secret && !show ? { WebkitTextSecurity: "disc" } as CSSProperties : undefined}
+          className="flex-1 border border-slate-300 rounded-lg px-3 py-1.5 text-sm font-mono"
         />
+        {secret && (
+          <button
+            type="button"
+            onClick={() => setShow((s) => !s)}
+            className="text-sm text-slate-500 px-2"
+            title={show ? "Hide" : "Show"}
+          >
+            {show ? "Hide" : "Show"}
+          </button>
+        )}
         <button
+          type="button"
           onClick={() => { if (val.trim()) { onSave(val.trim()); setVal(""); } }}
           className="text-sm bg-slate-800 text-white rounded-lg px-3"
         >
