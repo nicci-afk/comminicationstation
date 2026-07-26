@@ -1,4 +1,4 @@
-import { CSSProperties, FormEvent, useState } from "react";
+import { CSSProperties, FormEvent, useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, supabase } from "../lib/supabase";
 import { fmtWhen, useBusinesses, useProfile } from "../lib/hooks";
@@ -118,6 +118,27 @@ function Account() {
 function Connections() {
   const qc = useQueryClient();
   const [err, setErr] = useState("");
+  const [oauthNotice, setOauthNotice] = useState<{ kind: "ok" | "err"; msg: string } | null>(null);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const gmail = params.get("gmail");
+    if (gmail === "connected") {
+      const email = params.get("email") ?? "";
+      setOauthNotice({ kind: "ok", msg: `Connected${email ? `: ${email}` : ""}` });
+    } else if (gmail === "error") {
+      const msg = params.get("message") ?? "unknown error";
+      setOauthNotice({ kind: "err", msg });
+    }
+    if (gmail) {
+      const clean = new URL(window.location.href);
+      clean.searchParams.delete("gmail");
+      clean.searchParams.delete("email");
+      clean.searchParams.delete("message");
+      window.history.replaceState({}, "", clean.toString());
+    }
+  }, []);
+
   const { data: accounts = [] } = useQuery({
     queryKey: ["gmail-accounts"],
     queryFn: async (): Promise<GmailAccount[]> => {
@@ -187,6 +208,11 @@ function Connections() {
         </button>
       </Card>
 
+      {oauthNotice && (
+        <p className={`text-sm px-4 py-2 rounded-lg ${oauthNotice.kind === "ok" ? "bg-emerald-50 text-emerald-700" : "bg-red-50 text-red-700"}`}>
+          {oauthNotice.kind === "ok" ? "✓ " : "✗ Gmail error: "}{oauthNotice.msg}
+        </p>
+      )}
       <Card
         title="Text & WhatsApp (dormant until you're ready)"
         subtitle="Fully built and waiting. When you've prepped your clients: add Twilio credentials under API keys, then search & buy your dedicated business number here."
@@ -203,6 +229,16 @@ function ConfigInput({ label, configKey, current, onSave, secret }: {
 }) {
   const [val, setVal] = useState("");
   const [show, setShow] = useState(false);
+  const [saved, setSaved] = useState(false);
+
+  function handleSave() {
+    if (!val.trim()) return;
+    onSave(val.trim());
+    setVal("");
+    setSaved(true);
+    setTimeout(() => setSaved(false), 3000);
+  }
+
   return (
     <div className="mt-2">
       <label className="text-xs text-slate-500">{label}</label>
@@ -212,6 +248,7 @@ function ConfigInput({ label, configKey, current, onSave, secret }: {
           placeholder={current || "not set"}
           value={val}
           onChange={(e) => setVal(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && handleSave()}
           autoComplete="off"
           autoCorrect="off"
           autoCapitalize="off"
@@ -233,10 +270,11 @@ function ConfigInput({ label, configKey, current, onSave, secret }: {
         )}
         <button
           type="button"
-          onClick={() => { if (val.trim()) { onSave(val.trim()); setVal(""); } }}
-          className="text-sm bg-slate-800 text-white rounded-lg px-3"
+          onClick={handleSave}
+          disabled={!val.trim()}
+          className="text-sm bg-slate-800 text-white rounded-lg px-3 disabled:opacity-40"
         >
-          Save
+          {saved ? "Saved ✓" : "Save"}
         </button>
       </div>
     </div>
