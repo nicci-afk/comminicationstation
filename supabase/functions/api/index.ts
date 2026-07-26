@@ -18,6 +18,8 @@ import twilioSend from "./twilio-send.ts";
 import twilioProvision from "./twilio-provision.ts";
 import adminConfig from "./admin-config.ts";
 import bootstrap from "./bootstrap.ts";
+import contactsVcfImport from "./contacts-vcf-import.ts";
+import contactsGoogleSync from "./contacts-google-sync.ts";
 import { corsHeaders } from "./_shared/util.ts";
 
 type Handler = (req: Request) => Promise<Response>;
@@ -35,6 +37,8 @@ const routes: Record<string, Handler> = {
   "twilio-provision": twilioProvision,
   "admin-config": adminConfig,
   "bootstrap": bootstrap,
+  "contacts-vcf-import": contactsVcfImport,
+  "contacts-google-sync": contactsGoogleSync,
 };
 
 Deno.serve(async (req) => {

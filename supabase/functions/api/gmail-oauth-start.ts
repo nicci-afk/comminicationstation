@@ -14,6 +14,7 @@ import { googleClientConfig } from "./_shared/gmail.ts";
 
 const SCOPES = [
   "https://www.googleapis.com/auth/gmail.readonly",
+  "https://www.googleapis.com/auth/contacts.readonly",
   "openid",
   "email",
 ].join(" ");

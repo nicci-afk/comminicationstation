@@ -1,11 +1,31 @@
 // One attention episode: the conversation, the trust ledger (why it's here,
 // every automated transition with evidence), the stored strategy, drafting,
 // and the resolution actions.
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, Check, Clock, Send, Sparkles, X } from "lucide-react";
 import { api, supabase } from "../lib/supabase";
+
+const CATEGORIES: [string, string][] = [
+  ["booking", "Booking (travel)"],
+  ["bdm", "BDM (travel rep)"],
+  ["possible_supplier", "Possible supplier"],
+  ["lead", "Lead (real estate)"],
+  ["agent_to_agent", "Agent to agent"],
+  ["lender", "Lender"],
+  ["title", "Title company"],
+  ["needs_reply", "Needs reply"],
+  ["scheduling", "Scheduling"],
+  ["urgent", "Urgent"],
+  ["receipt", "Receipt"],
+  ["expense", "Expense"],
+  ["fyi", "FYI"],
+  ["promotion", "Promotion"],
+  ["newsletter", "Newsletter"],
+  ["notification", "Notification"],
+  ["other", "Other"],
+];
 import {
   fmtWhen, useArtifactOutput, useBusinesses, useContact, useItemAction, useItemEvents,
   useStrategies, useThreadMessages,
@@ -22,6 +42,10 @@ export default function ItemDetail() {
   const [draft, setDraft] = useState<{ text: string; notes: string } | null>(null);
   const [smsText, setSmsText] = useState("");
   const [error, setError] = useState("");
+  const [recatCategory, setRecatCategory] = useState("");
+  const [recatBusiness, setRecatBusiness] = useState<string | null>(null);
+  const [recatInit, setRecatInit] = useState(false);
+  const [recatStatus, setRecatStatus] = useState<"" | "saving" | "saved">("");
 
   const { data: item } = useQuery({
     queryKey: ["item", id],
@@ -63,6 +87,14 @@ export default function ItemDetail() {
     onError: (e) => setError((e as Error).message),
   });
 
+  useEffect(() => {
+    if (item && !recatInit) {
+      setRecatCategory(item.category);
+      setRecatBusiness(item.business_id);
+      setRecatInit(true);
+    }
+  }, [item, recatInit]);
+
   if (!item) return <div className="p-10 text-slate-400">Loading…</div>;
   const isPhone = item.channel !== "email";
 
@@ -70,6 +102,22 @@ export default function ItemDetail() {
     action.mutate({ id: item!.id, patch });
     nav(-1);
   }
+
+  async function handleRecat() {
+    setRecatStatus("saving");
+    setError("");
+    const { error: rpcErr } = await supabase.rpc("recategorize_queue_item", {
+      p_queue_item_id: item!.id,
+      p_category: recatCategory,
+      p_business_id: recatBusiness,
+    });
+    if (rpcErr) { setError(rpcErr.message); setRecatStatus(""); return; }
+    setRecatStatus("saved");
+    qc.invalidateQueries({ queryKey: ["item", id] });
+    qc.invalidateQueries({ queryKey: ["queue"] });
+  }
+
+  const recatChanged = recatCategory !== item.category || recatBusiness !== item.business_id;
 
   return (
     <div className="max-w-5xl mx-auto p-6 grid grid-cols-[1fr_340px] gap-6">
@@ -177,6 +225,37 @@ export default function ItemDetail() {
               {logOutcome.isPending ? "Logging…" : logOutcome.isSuccess ? "Outcome logged ✓" : "Log outcome → update strategy"}
             </button>
           )}
+        </div>
+
+        <div className="bg-white border border-slate-200 rounded-xl p-4">
+          <h3 className="text-sm font-semibold">Recategorize</h3>
+          <p className="text-xs text-slate-500 mt-1">
+            Saving also trains a rule so future messages from this sender are pre-routed.
+          </p>
+          <div className="mt-2 space-y-2">
+            <select
+              value={recatCategory}
+              onChange={(e) => { setRecatCategory(e.target.value); setRecatStatus(""); }}
+              className="w-full border border-slate-200 rounded-lg px-2 py-1.5 text-sm bg-white"
+            >
+              {CATEGORIES.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+            </select>
+            <select
+              value={recatBusiness ?? ""}
+              onChange={(e) => { setRecatBusiness(e.target.value || null); setRecatStatus(""); }}
+              className="w-full border border-slate-200 rounded-lg px-2 py-1.5 text-sm bg-white"
+            >
+              <option value="">No business</option>
+              {businesses.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
+            </select>
+            <button
+              onClick={handleRecat}
+              disabled={recatStatus === "saving" || !recatChanged}
+              className="w-full bg-indigo-600 text-white rounded-lg py-1.5 text-sm hover:bg-indigo-700 disabled:opacity-50"
+            >
+              {recatStatus === "saving" ? "Saving…" : recatStatus === "saved" ? "Saved ✓ · rule created" : "Save & train rule"}
+            </button>
+          </div>
         </div>
 
         <StrategyPanel item={item} strategy={strategy} comm={comm ?? null} />

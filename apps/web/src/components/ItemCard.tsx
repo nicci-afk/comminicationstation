@@ -16,6 +16,15 @@ export const CATEGORY_STYLE: Record<string, string> = {
   expense: "bg-emerald-50 text-emerald-700",
   fyi: "bg-slate-100 text-slate-600",
   other: "bg-slate-100 text-slate-600",
+  // travel categories
+  booking: "bg-blue-100 text-blue-800",
+  bdm: "bg-violet-100 text-violet-800",
+  possible_supplier: "bg-violet-50 text-violet-700",
+  // real estate categories
+  lead: "bg-rose-100 text-rose-800",
+  agent_to_agent: "bg-orange-100 text-orange-800",
+  lender: "bg-orange-50 text-orange-700",
+  title: "bg-orange-50 text-orange-700",
 };
 
 export function BusinessChip({ businesses, id }: { businesses: Business[]; id: string | null }) {
