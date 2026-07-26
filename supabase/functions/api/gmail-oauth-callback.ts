@@ -3,7 +3,7 @@
 // bound to the initiating user) is the authentication. This is the CSRF gate
 // that prevents account-linking attacks.
 
-import { enqueue, getConfig, serviceClient } from "./_shared/util.ts";
+import { enqueue, getConfig, serviceClient, SUPABASE_URL } from "./_shared/util.ts";
 import { exchangeCode, googleClientConfig } from "./_shared/gmail.ts";
 
 function decodeJwtPayload(idToken: string): Record<string, unknown> {
@@ -43,7 +43,7 @@ export default async function handler(req: Request): Promise<Response> {
     const redirectTo = (st.redirect_to as string) || fallback;
 
     const cfg = await googleClientConfig(db);
-    const redirectUri = `${new URL(req.url).origin}/functions/v1/api/gmail-oauth-callback`;
+    const redirectUri = `${SUPABASE_URL}/functions/v1/api/gmail-oauth-callback`;
     const tokens = await exchangeCode(cfg, code, redirectUri);
 
     const idToken = (tokens as Record<string, unknown>)["id_token"] as string | undefined;
