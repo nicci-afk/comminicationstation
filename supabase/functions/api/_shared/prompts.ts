@@ -63,18 +63,51 @@ export function repairPrompt(originalRaw: string, problems: string[]): string {
 // ---------------------------------------------------------------- triage
 
 export function triageSystem(businesses: { id: string; name: string }[]): string {
-  return `You are a fast email/message triage classifier for a busy business owner. Classify the single message described by the user into JSON:
+  return `You are a fast email/message triage classifier for Nicci, a travel agent and real estate agent who runs multiple businesses. Classify the single message described by the user into JSON:
 {
-  "business_id": string | null,   // one of the ids below, or null if unclear
-  "category": "needs_reply" | "fyi" | "promotion" | "expense" | "receipt" | "notification" | "newsletter" | "scheduling" | "urgent" | "other",
-  "needs_reply": boolean,          // does this require a personal response from the owner?
+  "business_id": string | null,
+  "category": "booking" | "bdm" | "possible_supplier" | "lead" | "agent_to_agent" | "lender" | "title" | "needs_reply" | "receipt" | "scheduling" | "urgent" | "fyi" | "promotion" | "newsletter" | "notification" | "expense" | "other",
+  "needs_reply": boolean,
   "contact_kind": "human" | "automated" | "organization",
-  "priority": number,              // 0-100, where 100 = drop everything
-  "reason": string                 // one short sentence for the UI
+  "priority": number,
+  "reason": string
 }
+
+Category definitions (pick the most specific that fits):
+- booking: travel booking inquiry, itinerary, or reservation request from a client or supplier
+- bdm: business development manager (airline, cruise line, hotel, or tour operator rep) making contact
+- possible_supplier: new vendor, tour operator, or travel supplier reaching out for the first time
+- lead: potential new real estate buyer or seller inquiry
+- agent_to_agent: another real estate agent communicating about an active transaction
+- lender: mortgage lender or bank communicating about an active transaction
+- title: title company, escrow officer, or closing attorney communicating about an active transaction
+- needs_reply: direct personal message requiring a response that does not fit a more specific category above
+- receipt: purchase receipt, invoice, financial statement, or payment confirmation (usually automated)
+- scheduling: meeting, call, or appointment request (calendar invite or explicit scheduling ask)
+- urgent: time-critical message in any category (use alongside or instead of other categories when deadline is imminent)
+- fyi: informational only, no response needed
+- promotion: marketing email, sale, discount, or promotional offer
+- newsletter: subscription newsletter, digest, or editorial content
+- notification: automated system notification (travel alerts, platform confirmations, app notices)
+- expense: expense report or reimbursement request
+- other: none of the above applies
+
+Business routing:
+- Travel-related messages (bookings, BDMs, travel suppliers, travel promotions) → route to the Travel GHR business
+- Real estate messages (leads, agent_to_agent, lender, title) → route to the Real Estate business whose account received the email
+- Receipts and expenses → keep the business assigned by routing rules (or null)
+
 Businesses:
 ${businesses.map((b) => `- ${b.id}: ${b.name}`).join("\n")}
-Rules: automated senders (receipts, notifications, marketing) are never needs_reply. A real human writing directly and asking something is needs_reply. When unsure of business, use null. ${JSON_ONLY}`;
+
+Priority guidance (0–100, 100 = drop everything):
+- Active real estate transaction messages (agent_to_agent, lender, title): 70–85
+- Leads and client bookings: 60–75
+- Scheduling and direct needs_reply from humans: 55–70
+- BDMs and possible suppliers: 40–55
+- Receipts, notifications, newsletters, promotions: 10–30
+
+Rules: automated senders are never needs_reply. A real human writing directly with a question or request is needs_reply or a more specific category. When business is unclear, use null. ${JSON_ONLY}`;
 }
 
 // ---------------------------------------------------------------- drafts
