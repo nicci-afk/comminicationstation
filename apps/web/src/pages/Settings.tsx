@@ -211,6 +211,7 @@ function ConfigInput({ label, configKey, current, onSave, secret }: {
           placeholder={current || "not set"}
           value={val}
           onChange={(e) => setVal(e.target.value)}
+          autoComplete={secret ? "new-password" : "off"}
           className="flex-1 border border-slate-300 rounded-lg px-3 py-1.5 text-sm"
         />
         <button
