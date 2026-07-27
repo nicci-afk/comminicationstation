@@ -10,7 +10,9 @@ interface ContactRow {
   display_name: string;
   kind: string;
   is_vip: boolean;
+  birthday: string | null;
   last_seen_at: string;
+  contact_channels: { channel_type: string; canonical_value: string }[];
   contact_strategies: { status: string; allowed_zone: string; re_analysis_recommended: boolean }[];
 }
 
@@ -37,7 +39,7 @@ export default function Contacts() {
     queryFn: async (): Promise<ContactRow[]> => {
       let q = supabase
         .from("contacts")
-        .select("id,display_name,kind,is_vip,last_seen_at,contact_strategies(status,allowed_zone,re_analysis_recommended)")
+        .select("id,display_name,kind,is_vip,birthday,last_seen_at,contact_channels(channel_type,canonical_value),contact_strategies(status,allowed_zone,re_analysis_recommended)")
         .is("merged_into_contact_id", null)
         .order("last_seen_at", { ascending: false })
         .limit(100);
@@ -207,12 +209,21 @@ export default function Contacts() {
         )}
         {contacts.map((c) => {
           const s = c.contact_strategies?.[0];
+          const email = c.contact_channels?.find((ch) => ch.channel_type === "email")?.canonical_value;
+          const bday = c.birthday
+            ? new Date(c.birthday + "T00:00:00").toLocaleDateString(undefined, { month: "short", day: "numeric" })
+            : null;
           return (
             <Link key={c.id} to={`/contacts/${c.id}`} className="flex items-center gap-3 px-4 py-3 hover:bg-slate-50">
-              {c.is_vip && <Star className="w-4 h-4 text-amber-500" fill="currentColor" />}
+              {c.is_vip && <Star className="w-4 h-4 text-amber-500 shrink-0" fill="currentColor" />}
               <div className="min-w-0 flex-1">
                 <div className="font-medium truncate">{c.display_name}</div>
-                <div className="text-xs text-slate-400">{c.kind} · seen {fmtWhen(c.last_seen_at)}</div>
+                <div className="text-xs text-slate-400 truncate">
+                  {email && <span className="text-indigo-500">{email}</span>}
+                  {email && <span className="mx-1">·</span>}
+                  {c.kind} · seen {fmtWhen(c.last_seen_at)}
+                  {bday && <span className="ml-1 text-slate-300">· 🎂 {bday}</span>}
+                </div>
               </div>
               {s ? (
                 <span className={`text-xs px-2 py-1 rounded-full ${

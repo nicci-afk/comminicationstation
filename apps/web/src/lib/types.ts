@@ -66,6 +66,7 @@ export interface Contact {
   is_vip: boolean;
   notes: string;
   birthday: string | null;
+  address: string | null;
   last_seen_at: string;
 }
 

@@ -71,11 +71,11 @@ export default function ContactDetail() {
         <span className="text-xs text-slate-400">seen {fmtWhen(contact.last_seen_at)}</span>
       </div>
 
-      {(channels.length > 0 || contact.birthday || contact.notes) && (
+      {(channels.length > 0 || contact.birthday || contact.address || contact.notes) && (
         <div className="mt-4 bg-white border border-slate-200 rounded-xl p-4 space-y-1.5">
           {channels.filter((ch) => ch.channel_type === "email").map((ch) => (
             <div key={ch.id} className="flex items-center gap-2 text-sm">
-              <span className="text-xs font-medium text-slate-400 w-10 shrink-0">email</span>
+              <span className="text-xs font-medium text-slate-400 w-12 shrink-0">email</span>
               <a href={`mailto:${ch.canonical_value}`} className="text-indigo-600 hover:underline truncate">
                 {ch.canonical_value}
               </a>
@@ -83,7 +83,7 @@ export default function ContactDetail() {
           ))}
           {channels.filter((ch) => ch.channel_type === "phone").map((ch) => (
             <div key={ch.id} className="flex items-center gap-2 text-sm">
-              <span className="text-xs font-medium text-slate-400 w-10 shrink-0">phone</span>
+              <span className="text-xs font-medium text-slate-400 w-12 shrink-0">phone</span>
               <a href={`tel:${ch.canonical_value}`} className="text-slate-700 hover:underline">
                 {ch.raw_value || ch.canonical_value}
               </a>
@@ -91,13 +91,19 @@ export default function ContactDetail() {
           ))}
           {contact.birthday && (
             <div className="flex items-center gap-2 text-sm">
-              <span className="text-xs font-medium text-slate-400 w-10 shrink-0">bday</span>
+              <span className="text-xs font-medium text-slate-400 w-12 shrink-0">birthday</span>
               <span className="text-slate-700">{new Date(contact.birthday + "T00:00:00").toLocaleDateString(undefined, { month: "long", day: "numeric", year: "numeric" })}</span>
+            </div>
+          )}
+          {contact.address && (
+            <div className="flex items-start gap-2 text-sm">
+              <span className="text-xs font-medium text-slate-400 w-12 shrink-0 pt-0.5">address</span>
+              <span className="text-slate-700 whitespace-pre-wrap">{contact.address}</span>
             </div>
           )}
           {contact.notes && (
             <div className="flex gap-2 text-sm pt-1 border-t border-slate-100">
-              <span className="text-xs font-medium text-slate-400 w-10 shrink-0 pt-0.5">notes</span>
+              <span className="text-xs font-medium text-slate-400 w-12 shrink-0 pt-0.5">notes</span>
               <span className="text-slate-600 whitespace-pre-wrap">{contact.notes}</span>
             </div>
           )}
@@ -196,6 +202,7 @@ function EditContactDialog({
   const [name, setName] = useState(contact.display_name);
   const [kind, setKind] = useState(contact.kind);
   const [birthday, setBirthday] = useState(contact.birthday ?? "");
+  const [address, setAddress] = useState(contact.address ?? "");
   const [notes, setNotes] = useState(contact.notes ?? "");
   const [localChannels, setLocalChannels] = useState(channels);
   const [deletedIds, setDeletedIds] = useState<string[]>([]);
@@ -214,6 +221,7 @@ function EditContactDialog({
         display_name: name.trim() || contact.display_name,
         kind,
         birthday: birthday || null,
+        address: address.trim() || null,
         notes,
       }).eq("id", contact.id);
       if (e1) throw new Error(e1.message);
@@ -269,6 +277,9 @@ function EditContactDialog({
           <input type="date" value={birthday} onChange={(e) => setBirthday(e.target.value)}
             className="border border-slate-300 rounded-lg px-3 py-2 text-sm" />
         </div>
+
+        <input value={address} onChange={(e) => setAddress(e.target.value)} placeholder="Home address (optional)"
+          className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm" />
 
         <textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={4}
           placeholder="Notes…"

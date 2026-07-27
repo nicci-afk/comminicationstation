@@ -12,6 +12,7 @@ interface PersonConnection {
   emailAddresses?: { value?: string }[];
   phoneNumbers?: { value?: string }[];
   birthdays?: { date?: { year?: number; month?: number; day?: number } }[];
+  addresses?: { formattedValue?: string; streetAddress?: string; city?: string; region?: string; postalCode?: string; country?: string }[];
 }
 
 export default async function handler(req: Request): Promise<Response> {
@@ -39,7 +40,7 @@ export default async function handler(req: Request): Promise<Response> {
     let pageToken: string | undefined;
     do {
       const url = new URL("https://people.googleapis.com/v1/people/me/connections");
-      url.searchParams.set("personFields", "names,emailAddresses,phoneNumbers,birthdays");
+      url.searchParams.set("personFields", "names,emailAddresses,phoneNumbers,birthdays,addresses");
       url.searchParams.set("pageSize", "1000");
       if (pageToken) url.searchParams.set("pageToken", pageToken);
 
@@ -93,6 +94,14 @@ export default async function handler(req: Request): Promise<Response> {
           ? `${bdRaw.year}-${String(bdRaw.month).padStart(2, "0")}-${String(bdRaw.day).padStart(2, "0")}`
           : null;
 
+        const addrRaw = conn.addresses?.[0];
+        const address = addrRaw?.formattedValue?.trim() || (() => {
+          const parts = [addrRaw?.streetAddress, addrRaw?.city,
+            [addrRaw?.region, addrRaw?.postalCode].filter(Boolean).join(" "),
+            addrRaw?.country].filter(Boolean);
+          return parts.length ? parts.join(", ") : null;
+        })();
+
         if (!displayName && emails.length === 0) { skipped++; continue; }
 
         let contactId: string | null = null;
@@ -105,12 +114,13 @@ export default async function handler(req: Request): Promise<Response> {
           const patch: Record<string, unknown> = { kind: "human" };
           if (displayName) patch.display_name = displayName;
           if (birthday) patch.birthday = birthday;
+          if (address) patch.address = address;
           await db.from("contacts").update(patch).eq("id", contactId).eq("user_id", userId);
           updated++;
         } else {
           const { data: created, error: ce } = await db
             .from("contacts")
-            .insert({ user_id: userId, display_name: displayName || emails[0] || "Unknown", kind: "human", birthday })
+            .insert({ user_id: userId, display_name: displayName || emails[0] || "Unknown", kind: "human", birthday, address })
             .select("id").single();
           if (ce) throw new Error(ce.message);
           contactId = created.id as string;

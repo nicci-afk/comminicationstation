@@ -10,6 +10,7 @@ interface ParsedContact {
   phones: string[];      // canonical (stripped) — for dedup
   rawPhones: string[];   // original formatted — for display
   birthday: string | null;
+  address: string | null;
 }
 
 function decodeVCardValue(v: string): string {
@@ -31,6 +32,7 @@ function parseVCard(text: string): ParsedContact[] {
     const phones: string[] = [];
     const rawPhones: string[] = [];
     let birthday: string | null = null;
+    let address: string | null = null;
 
     for (const line of lines) {
       const ci = line.indexOf(":");
@@ -62,11 +64,22 @@ function parseVCard(text: string): ParsedContact[] {
         if (raw.length === 8) {
           birthday = `${raw.slice(0, 4)}-${raw.slice(4, 6)}-${raw.slice(6, 8)}`;
         }
+      } else if ((key === "ADR" || key.startsWith("ADR;")) && !address) {
+        // ADR format: PO Box;Extended;Street;City;State;ZIP;Country
+        const parts = value.split(";").map((p) => decodeVCardValue(p).trim());
+        const street = parts[2] ?? "";
+        const city = parts[3] ?? "";
+        const state = parts[4] ?? "";
+        const zip = parts[5] ?? "";
+        const country = parts[6] ?? "";
+        const stateZip = [state, zip].filter(Boolean).join(" ");
+        const formatted = [street, city, stateZip, country].filter(Boolean).join(", ");
+        if (formatted) address = formatted;
       }
     }
 
     if (displayName || emails.length > 0) {
-      results.push({ displayName: displayName || emails[0] || "Unknown", emails, phones, rawPhones, birthday });
+      results.push({ displayName: displayName || emails[0] || "Unknown", emails, phones, rawPhones, birthday, address });
     }
   }
   return results;
@@ -111,13 +124,18 @@ export default async function handler(req: Request): Promise<Response> {
 
         if (contactId) {
           await db.from("contacts")
-            .update({ display_name: c.displayName, kind: "human", ...(c.birthday ? { birthday: c.birthday } : {}) })
+            .update({
+              display_name: c.displayName,
+              kind: "human",
+              ...(c.birthday ? { birthday: c.birthday } : {}),
+              ...(c.address ? { address: c.address } : {}),
+            })
             .eq("id", contactId).eq("user_id", userId);
           updated++;
         } else {
           const { data: created, error: ce } = await db
             .from("contacts")
-            .insert({ user_id: userId, display_name: c.displayName, kind: "human", birthday: c.birthday })
+            .insert({ user_id: userId, display_name: c.displayName, kind: "human", birthday: c.birthday, address: c.address })
             .select("id").single();
           if (ce) throw new Error(ce.message);
           contactId = created.id as string;

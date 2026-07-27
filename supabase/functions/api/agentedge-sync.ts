@@ -16,6 +16,7 @@ interface NormalizedContact {
   notes: string;
   emails: string[];
   phones: string[];
+  address: string | null;
 }
 
 function pick(obj: CrmClient, ...keys: string[]): string {
@@ -37,13 +38,12 @@ function pickArr(obj: CrmClient, ...keys: string[]): string[] {
 function normalize(clients: CrmClient[]): NormalizedContact[] {
   return clients
     .map((c) => {
-      // Try every plausible name-column variant AgentEdge might use
-      const name = pick(c,
-        "display_name", "full_name", "name", "client_name",
-        "first_name", // will get overridden by combined below if last_name exists too
-      ) || (() => {
+      // Try dedicated full-name columns first; fall back to first+last combination.
+      // "first_name" is intentionally excluded from the first pick() so the
+      // IIFE that joins first+last always runs when there is no dedicated full-name field.
+      const name = pick(c, "display_name", "full_name", "name", "client_name") || (() => {
         const fn = pick(c, "first_name");
-        const ln = pick(c, "last_name");
+        const ln = pick(c, "last_name", "surname");
         return [fn, ln].filter(Boolean).join(" ");
       })();
 
@@ -54,6 +54,17 @@ function normalize(clients: CrmClient[]): NormalizedContact[] {
       const dob = pick(c, "date_of_birth", "birthday", "dob") || null;
       const notes = pick(c, "notes", "note", "description", "comments");
 
+      // Build a single-line address from whatever columns AgentEdge provides
+      const formattedAddress = pick(c, "full_address", "formatted_address", "address");
+      const street = pick(c, "street_address", "address_line1", "address_line_1", "street");
+      const city = pick(c, "city");
+      const state = pick(c, "state", "state_province", "province");
+      const zip = pick(c, "zip", "postal_code", "zip_code", "postcode");
+      const country = pick(c, "country", "country_code");
+      const address = formattedAddress ||
+        [street, city, [state, zip].filter(Boolean).join(" "), country].filter(Boolean).join(", ") ||
+        null;
+
       const emails = [
         ...(email ? [email.toLowerCase()] : []),
         ...altEmails.map((e) => e.toLowerCase().trim()),
@@ -63,7 +74,7 @@ function normalize(clients: CrmClient[]): NormalizedContact[] {
         ...altPhones.map((p) => p.trim()),
       ].filter(Boolean);
 
-      return { display_name: name, birthday: dob ?? null, notes, emails: [...new Set(emails)], phones: [...new Set(phones)] };
+      return { display_name: name, birthday: dob ?? null, notes, emails: [...new Set(emails)], phones: [...new Set(phones)], address };
     })
     .filter((c) => c.display_name.length > 0 && !/^[\d\s+\-().]+$/.test(c.display_name));
 }
