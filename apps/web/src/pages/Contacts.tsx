@@ -210,6 +210,8 @@ export default function Contacts() {
         {contacts.map((c) => {
           const s = c.contact_strategies?.[0];
           const email = c.contact_channels?.find((ch) => ch.channel_type === "email")?.canonical_value;
+          const phone = c.contact_channels?.find((ch) => ch.channel_type === "phone")?.raw_value
+            ?? c.contact_channels?.find((ch) => ch.channel_type === "phone")?.canonical_value;
           const bday = c.birthday
             ? new Date(c.birthday + "T00:00:00").toLocaleDateString(undefined, { month: "short", day: "numeric" })
             : null;
@@ -220,7 +222,9 @@ export default function Contacts() {
                 <div className="font-medium truncate">{c.display_name}</div>
                 <div className="text-xs text-slate-400 truncate">
                   {email && <span className="text-indigo-500">{email}</span>}
-                  {email && <span className="mx-1">·</span>}
+                  {email && phone && <span className="mx-1">·</span>}
+                  {phone && <span className="text-slate-500">{phone}</span>}
+                  {(email || phone) && <span className="mx-1">·</span>}
                   {c.kind} · seen {fmtWhen(c.last_seen_at)}
                   {bday && <span className="ml-1 text-slate-300">· 🎂 {bday}</span>}
                 </div>
