@@ -4,7 +4,7 @@
 import { useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, MessageSquare, Pencil, Play, Star } from "lucide-react";
+import { ArrowLeft, GitMerge, MessageSquare, Pencil, Play, Star } from "lucide-react";
 import { api, supabase } from "../lib/supabase";
 import { fmtWhen, useArtifactOutput, useBusinesses, useContact, useContactChannels, useStrategies } from "../lib/hooks";
 import type { Contact, ContactChannel, PipelineRun } from "../lib/types";
@@ -20,6 +20,7 @@ export default function ContactDetail() {
   const [showAnalyze, setShowAnalyze] = useState(false);
   const [showEdit, setShowEdit] = useState(false);
   const [showInteraction, setShowInteraction] = useState(false);
+  const [showMerge, setShowMerge] = useState(false);
   const strategy = strategies[0] ?? null;
   const { data: comm } = useArtifactOutput(strategy?.comm_artifact_id ?? null);
   const { data: persona } = useArtifactOutput(strategy?.persona_artifact_id ?? null);
@@ -66,6 +67,9 @@ export default function ContactDetail() {
         </button>
         <button onClick={() => setShowEdit(true)} title="Edit contact" className="text-slate-400 hover:text-slate-700">
           <Pencil className="w-4 h-4" />
+        </button>
+        <button onClick={() => setShowMerge(true)} title="Merge into another contact" className="text-slate-400 hover:text-slate-700">
+          <GitMerge className="w-4 h-4" />
         </button>
         <span className="text-xs px-2 py-1 bg-slate-100 rounded-full text-slate-500">{contact.kind}</span>
         <span className="text-xs text-slate-400">seen {fmtWhen(contact.last_seen_at)}</span>
@@ -158,6 +162,15 @@ export default function ContactDetail() {
             qc.invalidateQueries({ queryKey: ["contact", id] });
             qc.invalidateQueries({ queryKey: ["contact-channels", id] });
           }}
+        />
+      )}
+
+      {showMerge && (
+        <MergeContactDialog
+          sourceContactId={id!}
+          sourceContactName={contact.display_name}
+          onClose={() => setShowMerge(false)}
+          onMerged={(targetId) => nav(`/contacts/${targetId}`, { replace: true })}
         />
       )}
 
@@ -315,6 +328,123 @@ function EditContactDialog({
             className="bg-indigo-600 text-white rounded-lg px-4 py-2 text-sm disabled:opacity-50">
             {save.isPending ? "Saving…" : "Save changes"}
           </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Merge contact dialog ─────────────────────────────────────────────────────
+
+function MergeContactDialog({
+  sourceContactId,
+  sourceContactName,
+  onClose,
+  onMerged,
+}: {
+  sourceContactId: string;
+  sourceContactName: string;
+  onClose: () => void;
+  onMerged: (targetContactId: string) => void;
+}) {
+  const [search, setSearch] = useState("");
+  const [results, setResults] = useState<{ id: string; display_name: string; kind: string }[]>([]);
+  const [selected, setSelected] = useState<{ id: string; display_name: string } | null>(null);
+  const [status, setStatus] = useState<"" | "confirming" | "merging" | "done">("");
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    if (!search.trim()) { setResults([]); return; }
+    const t = setTimeout(async () => {
+      const { data } = await supabase
+        .from("contacts")
+        .select("id, display_name, kind")
+        .ilike("display_name", `%${search}%`)
+        .is("merged_into_contact_id", null)
+        .neq("id", sourceContactId)
+        .limit(6);
+      setResults((data as { id: string; display_name: string; kind: string }[]) ?? []);
+    }, 250);
+    return () => clearTimeout(t);
+  }, [search, sourceContactId]);
+
+  const merge = useMutation({
+    mutationFn: async () =>
+      await api<{ target_contact_id: string }>("contact-merge", {
+        source_contact_id: sourceContactId,
+        target_contact_id: selected!.id,
+      }),
+    onSuccess: (res) => {
+      setStatus("done");
+      onMerged(res.target_contact_id);
+    },
+    onError: (e) => { setError((e as Error).message); setStatus(""); },
+  });
+
+  return (
+    <div className="fixed inset-0 bg-black/30 grid place-items-center z-50" onClick={onClose}>
+      <div className="bg-white rounded-2xl p-6 w-[480px] space-y-4" onClick={(e) => e.stopPropagation()}>
+        <div>
+          <h2 className="font-semibold">Merge contact</h2>
+          <p className="text-xs text-slate-500 mt-1">
+            All channels, messages, and queue items from{" "}
+            <strong>{sourceContactName}</strong> will move to the contact you choose.
+            The original record is tombstoned (hidden, not deleted). This cannot be undone.
+          </p>
+        </div>
+
+        <div className="relative">
+          <input
+            type="text"
+            value={search}
+            onChange={(e) => { setSearch(e.target.value); setSelected(null); setStatus(""); setError(""); }}
+            placeholder="Search for the contact to merge into…"
+            className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm"
+            autoFocus
+          />
+          {results.length > 0 && !selected && (
+            <ul className="absolute z-10 left-0 right-0 mt-1 bg-white border border-slate-200 rounded-lg shadow text-sm overflow-hidden">
+              {results.map((c) => (
+                <li key={c.id}>
+                  <button
+                    onClick={() => { setSelected(c); setSearch(c.display_name); setResults([]); setStatus("confirming"); }}
+                    className="w-full text-left px-3 py-2 hover:bg-slate-50 flex items-center gap-2"
+                  >
+                    <span className="flex-1">{c.display_name}</span>
+                    {c.kind === "unknown" && <span className="text-xs text-slate-400">unknown</span>}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+
+        {selected && status === "confirming" && (
+          <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-sm text-amber-800 space-y-1">
+            <p>
+              Merge <strong>{sourceContactName}</strong> → <strong>{selected.display_name}</strong>?
+            </p>
+            <p className="text-xs">
+              All channels (email addresses, phone numbers), every queue item, and every message
+              from <strong>{sourceContactName}</strong> will be reassigned to{" "}
+              <strong>{selected.display_name}</strong>.
+            </p>
+          </div>
+        )}
+
+        {error && <p className="text-sm text-red-600">{error}</p>}
+
+        <div className="flex justify-end gap-2">
+          <button onClick={onClose} className="px-4 py-2 text-sm text-slate-500">Cancel</button>
+          {selected && status === "confirming" && (
+            <button
+              onClick={() => { setStatus("merging"); merge.mutate(); }}
+              disabled={status === "merging"}
+              className="bg-amber-600 text-white rounded-lg px-4 py-2 text-sm hover:bg-amber-700 disabled:opacity-50"
+            >
+              {status === "merging" ? "Merging…" : `Merge into ${selected.display_name}`}
+            </button>
+          )}
         </div>
       </div>
     </div>
