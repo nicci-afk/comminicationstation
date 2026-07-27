@@ -4,7 +4,7 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, Check, Clock, Send, Sparkles, X } from "lucide-react";
+import { ArrowLeft, Ban, Check, Clock, Send, Sparkles, X } from "lucide-react";
 import { api, supabase } from "../lib/supabase";
 
 const CATEGORIES: [string, string][] = [
@@ -42,6 +42,7 @@ export default function ItemDetail() {
   const [draft, setDraft] = useState<{ text: string; notes: string } | null>(null);
   const [smsText, setSmsText] = useState("");
   const [error, setError] = useState("");
+  const [blockStatus, setBlockStatus] = useState<"" | "confirming" | "blocking" | "done">("");
   const [recatCategory, setRecatCategory] = useState("");
   const [recatBusiness, setRecatBusiness] = useState<string | null>(null);
   const [recatInit, setRecatInit] = useState(false);
@@ -79,6 +80,15 @@ export default function ItemDetail() {
       setError("");
     },
     onError: (e) => setError((e as Error).message),
+  });
+
+  const blockSender = useMutation({
+    mutationFn: async () => await api("spam-block", { queue_item_id: id }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["queue"] });
+      nav(-1);
+    },
+    onError: (e) => { setError((e as Error).message); setBlockStatus(""); },
   });
 
   const logOutcome = useMutation({
@@ -205,6 +215,38 @@ export default function ItemDetail() {
               className="flex items-center justify-center gap-1 bg-sky-50 text-sky-700 rounded-lg py-2 text-sm hover:bg-sky-100">
               <Clock className="w-4 h-4" /> Tomorrow
             </button>
+          </div>
+          <div className="col-span-2 mt-1">
+            {blockStatus === "confirming" ? (
+              <div className="flex gap-2">
+                <button
+                  onClick={() => { setBlockStatus("blocking"); blockSender.mutate(); }}
+                  className="flex-1 flex items-center justify-center gap-1 bg-red-600 text-white rounded-lg py-2 text-sm hover:bg-red-700"
+                >
+                  <Ban className="w-4 h-4" /> Yes, block
+                </button>
+                <button
+                  onClick={() => setBlockStatus("")}
+                  className="flex-1 bg-slate-100 text-slate-600 rounded-lg py-2 text-sm hover:bg-slate-200"
+                >
+                  Cancel
+                </button>
+              </div>
+            ) : (
+              <button
+                onClick={() => setBlockStatus("confirming")}
+                disabled={blockStatus === "blocking"}
+                className="w-full flex items-center justify-center gap-1 bg-red-50 text-red-700 rounded-lg py-2 text-sm hover:bg-red-100 disabled:opacity-50"
+              >
+                <Ban className="w-4 h-4" />
+                {blockStatus === "blocking" ? "Blocking…" : "Block sender"}
+              </button>
+            )}
+            {blockStatus === "confirming" && (
+              <p className="mt-1 text-xs text-slate-500 text-center">
+                Suppresses this item + all open items from <strong>{item.sender_identifier}</strong>, and blocks future messages.
+              </p>
+            )}
           </div>
           {strategy && comm != null && (
             <button
