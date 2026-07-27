@@ -1,12 +1,13 @@
 // Contact profile + the "Analyze contact" trigger (the only place the
 // expensive 3-stage pipeline can start) + full stored strategy rendering.
+// Also hosts: Edit contact, Log interaction (post-interaction update packet).
 import { useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, Play, Star } from "lucide-react";
+import { ArrowLeft, MessageSquare, Pencil, Play, Star } from "lucide-react";
 import { api, supabase } from "../lib/supabase";
 import { fmtWhen, useArtifactOutput, useBusinesses, useContact, useContactChannels, useStrategies } from "../lib/hooks";
-import type { PipelineRun } from "../lib/types";
+import type { Contact, ContactChannel, PipelineRun } from "../lib/types";
 
 export default function ContactDetail() {
   const { id } = useParams();
@@ -17,6 +18,8 @@ export default function ContactDetail() {
   const { data: strategies = [] } = useStrategies(id ?? null);
   const { data: businesses = [] } = useBusinesses();
   const [showAnalyze, setShowAnalyze] = useState(false);
+  const [showEdit, setShowEdit] = useState(false);
+  const [showInteraction, setShowInteraction] = useState(false);
   const strategy = strategies[0] ?? null;
   const { data: comm } = useArtifactOutput(strategy?.comm_artifact_id ?? null);
   const { data: persona } = useArtifactOutput(strategy?.persona_artifact_id ?? null);
@@ -55,11 +58,14 @@ export default function ContactDetail() {
       <button onClick={() => nav(-1)} className="flex items-center gap-1 text-sm text-slate-500 hover:text-slate-800">
         <ArrowLeft className="w-4 h-4" /> Back
       </button>
-      <div className="mt-2 flex items-center gap-3">
+      <div className="mt-2 flex items-center gap-3 flex-wrap">
         <h1 className="text-2xl font-bold">{contact.display_name}</h1>
         <button onClick={() => toggleVip.mutate()} title="Toggle VIP">
           <Star className={`w-5 h-5 ${contact.is_vip ? "text-amber-500" : "text-slate-300"}`}
             fill={contact.is_vip ? "currentColor" : "none"} />
+        </button>
+        <button onClick={() => setShowEdit(true)} title="Edit contact" className="text-slate-400 hover:text-slate-700">
+          <Pencil className="w-4 h-4" />
         </button>
         <span className="text-xs px-2 py-1 bg-slate-100 rounded-full text-slate-500">{contact.kind}</span>
         <span className="text-xs text-slate-400">seen {fmtWhen(contact.last_seen_at)}</span>
@@ -98,33 +104,55 @@ export default function ContactDetail() {
         </div>
       )}
 
-      {activeRun ? (
-        <div className="mt-4 bg-indigo-50 border border-indigo-200 rounded-xl p-4 text-sm">
-          <div className="font-medium text-indigo-800">Analysis running — stage {activeRun.current_stage} of 3</div>
-          <div className="mt-2 flex gap-1">
-            {[1, 2, 3].map((s) => (
-              <div key={s} className={`h-2 flex-1 rounded-full ${
-                activeRun.current_stage > s || activeRun.status === `stage${s}_done` ? "bg-indigo-500"
-                : activeRun.current_stage === s ? "bg-indigo-300 animate-pulse" : "bg-slate-200"}`} />
-            ))}
+      <div className="mt-4 flex items-center gap-2 flex-wrap">
+        {activeRun ? (
+          <div className="flex-1 bg-indigo-50 border border-indigo-200 rounded-xl p-4 text-sm">
+            <div className="font-medium text-indigo-800">Analysis running — stage {activeRun.current_stage} of 3</div>
+            <div className="mt-2 flex gap-1">
+              {[1, 2, 3].map((s) => (
+                <div key={s} className={`h-2 flex-1 rounded-full ${
+                  activeRun.current_stage > s || activeRun.status === `stage${s}_done` ? "bg-indigo-500"
+                  : activeRun.current_stage === s ? "bg-indigo-300 animate-pulse" : "bg-slate-200"}`} />
+              ))}
+            </div>
+            <p className="mt-2 text-xs text-indigo-700">
+              1 · Perplexity public-web research → 2 · persona strategy → 3 · communication strategy
+            </p>
           </div>
-          <p className="mt-2 text-xs text-indigo-700">
-            1 · Perplexity public-web research → 2 · persona strategy → 3 · communication strategy
-          </p>
-        </div>
-      ) : (
-        <button
-          onClick={() => setShowAnalyze(true)}
-          className="mt-4 flex items-center gap-2 bg-indigo-600 text-white rounded-xl px-4 py-2 text-sm font-medium hover:bg-indigo-700"
-        >
-          <Play className="w-4 h-4" /> {strategy ? "Re-analyze contact" : "Analyze contact"}
-        </button>
-      )}
+        ) : (
+          <button
+            onClick={() => setShowAnalyze(true)}
+            className="flex items-center gap-2 bg-indigo-600 text-white rounded-xl px-4 py-2 text-sm font-medium hover:bg-indigo-700"
+          >
+            <Play className="w-4 h-4" /> {strategy ? "Re-analyze contact" : "Analyze contact"}
+          </button>
+        )}
+        {strategy && (
+          <button
+            onClick={() => setShowInteraction(true)}
+            className="flex items-center gap-2 border border-slate-300 rounded-xl px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50"
+          >
+            <MessageSquare className="w-4 h-4" /> Log interaction
+          </button>
+        )}
+      </div>
 
       {runs[0] && ["error", "qc_failed"].includes(runs[0].status) && (
         <div className="mt-3 bg-red-50 border border-red-200 rounded-xl p-3 text-xs text-red-700">
           Last run {runs[0].status === "qc_failed" ? "failed quality-control gates" : "errored"}: {runs[0].error}
         </div>
+      )}
+
+      {showEdit && (
+        <EditContactDialog
+          contact={contact}
+          channels={channels}
+          onClose={() => {
+            setShowEdit(false);
+            qc.invalidateQueries({ queryKey: ["contact", id] });
+            qc.invalidateQueries({ queryKey: ["contact-channels", id] });
+          }}
+        />
       )}
 
       {showAnalyze && (
@@ -136,12 +164,304 @@ export default function ContactDetail() {
         />
       )}
 
+      {showInteraction && strategy && (
+        <InteractionUpdateDialog
+          strategyId={strategy.id}
+          contactName={contact.display_name}
+          onClose={() => {
+            setShowInteraction(false);
+            qc.invalidateQueries({ queryKey: ["strategies", id] });
+          }}
+        />
+      )}
+
       {strategy && comm != null && (
         <StrategyFull strategy={strategy} comm={comm} persona={persona ?? null} />
       )}
     </div>
   );
 }
+
+// ─── Edit contact dialog ──────────────────────────────────────────────────────
+
+function EditContactDialog({
+  contact,
+  channels,
+  onClose,
+}: {
+  contact: Contact;
+  channels: ContactChannel[];
+  onClose: () => void;
+}) {
+  const [name, setName] = useState(contact.display_name);
+  const [kind, setKind] = useState(contact.kind);
+  const [birthday, setBirthday] = useState(contact.birthday ?? "");
+  const [notes, setNotes] = useState(contact.notes ?? "");
+  const [localChannels, setLocalChannels] = useState(channels);
+  const [deletedIds, setDeletedIds] = useState<string[]>([]);
+  const [newEmail, setNewEmail] = useState("");
+  const [newPhone, setNewPhone] = useState("");
+  const [error, setError] = useState("");
+
+  function removeChannel(channelId: string) {
+    setLocalChannels((prev) => prev.filter((c) => c.id !== channelId));
+    setDeletedIds((prev) => [...prev, channelId]);
+  }
+
+  const save = useMutation({
+    mutationFn: async () => {
+      const { error: e1 } = await supabase.from("contacts").update({
+        display_name: name.trim() || contact.display_name,
+        kind,
+        birthday: birthday || null,
+        notes,
+      }).eq("id", contact.id);
+      if (e1) throw new Error(e1.message);
+
+      for (const cid of deletedIds) {
+        const { error: e2 } = await supabase.from("contact_channels").delete().eq("id", cid);
+        if (e2) throw new Error(e2.message);
+      }
+
+      const { data: { user } } = await supabase.auth.getUser();
+      const uid = user!.id;
+
+      if (newEmail.trim() && newEmail.includes("@")) {
+        const addr = newEmail.trim().toLowerCase();
+        const { error: e3 } = await supabase.from("contact_channels").insert({
+          contact_id: contact.id, user_id: uid,
+          channel_type: "email", raw_value: addr, canonical_value: addr,
+        });
+        if (e3 && !e3.code?.includes("23505")) throw new Error(e3.message);
+      }
+
+      if (newPhone.trim()) {
+        const canonical = newPhone.trim().replace(/[\s\-\(\)\.]/g, "");
+        if (canonical.replace(/[^0-9]/g, "").length > 3) {
+          const { error: e4 } = await supabase.from("contact_channels").insert({
+            contact_id: contact.id, user_id: uid,
+            channel_type: "phone", raw_value: newPhone.trim(), canonical_value: canonical,
+          });
+          if (e4 && !e4.code?.includes("23505")) throw new Error(e4.message);
+        }
+      }
+    },
+    onSuccess: onClose,
+    onError: (e) => setError((e as Error).message),
+  });
+
+  return (
+    <div className="fixed inset-0 bg-black/30 grid place-items-center z-50" onClick={onClose}>
+      <div className="bg-white rounded-2xl p-6 w-[520px] space-y-3 max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+        <h2 className="font-semibold">Edit contact</h2>
+
+        <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Display name"
+          className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm" />
+
+        <div className="grid grid-cols-2 gap-2">
+          <select value={kind} onChange={(e) => setKind(e.target.value as "human" | "automated" | "organization" | "unknown")}
+            className="border border-slate-300 rounded-lg px-3 py-2 text-sm bg-white">
+            <option value="human">human</option>
+            <option value="organization">organization</option>
+            <option value="automated">automated</option>
+            <option value="unknown">unknown</option>
+          </select>
+          <input type="date" value={birthday} onChange={(e) => setBirthday(e.target.value)}
+            className="border border-slate-300 rounded-lg px-3 py-2 text-sm" />
+        </div>
+
+        <textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={4}
+          placeholder="Notes…"
+          className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm resize-y" />
+
+        <div className="border border-slate-200 rounded-lg p-3 space-y-2">
+          <p className="text-xs font-medium text-slate-500">Channels</p>
+          {localChannels.length === 0 && (
+            <p className="text-xs text-slate-400">No channels yet — add one below.</p>
+          )}
+          {localChannels.map((ch) => (
+            <div key={ch.id} className="flex items-center gap-2 text-sm">
+              <span className="text-xs text-slate-400 w-10 shrink-0">{ch.channel_type}</span>
+              <span className="flex-1 font-mono text-xs truncate">{ch.canonical_value}</span>
+              <button type="button" onClick={() => removeChannel(ch.id)}
+                className="text-xs text-red-400 hover:text-red-600 shrink-0">remove</button>
+            </div>
+          ))}
+          <div className="flex gap-2 pt-1">
+            <input value={newEmail} onChange={(e) => setNewEmail(e.target.value)}
+              placeholder="Add email address"
+              className="flex-1 border border-slate-300 rounded-lg px-2 py-1.5 text-xs" />
+            <input value={newPhone} onChange={(e) => setNewPhone(e.target.value)}
+              placeholder="Add phone"
+              className="flex-1 border border-slate-300 rounded-lg px-2 py-1.5 text-xs" />
+          </div>
+        </div>
+
+        {error && <p className="text-sm text-red-600">{error}</p>}
+        <div className="flex justify-end gap-2">
+          <button type="button" onClick={onClose} className="px-4 py-2 text-sm text-slate-500">Cancel</button>
+          <button type="button" onClick={() => save.mutate()} disabled={save.isPending}
+            className="bg-indigo-600 text-white rounded-lg px-4 py-2 text-sm disabled:opacity-50">
+            {save.isPending ? "Saving…" : "Save changes"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Log interaction dialog ───────────────────────────────────────────────────
+
+function TagInput({ value, onChange, placeholder }: {
+  value: string[]; onChange: (v: string[]) => void; placeholder: string;
+}) {
+  const [input, setInput] = useState("");
+  return (
+    <div className="border border-slate-300 rounded-lg px-2 py-1.5 flex flex-wrap gap-1 min-h-[38px]">
+      {value.map((tag, i) => (
+        <span key={i} className="bg-slate-100 text-slate-700 text-xs px-2 py-0.5 rounded-full flex items-center gap-1">
+          {tag}
+          <button type="button" onClick={() => onChange(value.filter((_, j) => j !== i))}
+            className="hover:text-red-500 leading-none">×</button>
+        </span>
+      ))}
+      <input
+        value={input}
+        onChange={(e) => setInput(e.target.value)}
+        onKeyDown={(e) => {
+          if ((e.key === "Enter" || e.key === ",") && input.trim()) {
+            e.preventDefault();
+            onChange([...value, input.trim()]);
+            setInput("");
+          }
+        }}
+        placeholder={value.length === 0 ? placeholder : "Enter to add…"}
+        className="outline-none text-sm flex-1 min-w-[120px] bg-transparent"
+      />
+    </div>
+  );
+}
+
+function InteractionUpdateDialog({
+  strategyId,
+  contactName,
+  onClose,
+}: {
+  strategyId: string;
+  contactName: string;
+  onClose: () => void;
+}) {
+  const [whatSent, setWhatSent] = useState("");
+  const [responseObserved, setResponseObserved] = useState("");
+  const [responseClassification, setResponseClassification] = useState("");
+  const [confidenceChange, setConfidenceChange] = useState<"increase" | "decrease" | "none">("none");
+  const [frictionSignals, setFrictionSignals] = useState<string[]>([]);
+  const [driftSignals, setDriftSignals] = useState<string[]>([]);
+  const [recommendedUpdates, setRecommendedUpdates] = useState<string[]>([]);
+  const [error, setError] = useState("");
+
+  const submit = useMutation({
+    mutationFn: async () =>
+      await api("interaction-update", {
+        strategy_id: strategyId,
+        mode: "manual",
+        packet: {
+          what_was_sent: whatSent,
+          response_observed: responseObserved,
+          response_classification: responseClassification.trim() || "neutral",
+          confidence_change: confidenceChange,
+          friction_signals_observed: frictionSignals,
+          drift_signals_observed: driftSignals,
+          recommended_upstream_updates: recommendedUpdates,
+        },
+      }),
+    onSuccess: onClose,
+    onError: (e) => setError((e as Error).message),
+  });
+
+  return (
+    <div className="fixed inset-0 bg-black/30 grid place-items-center z-50" onClick={onClose}>
+      <div className="bg-white rounded-2xl p-6 w-[560px] space-y-3 max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+        <h2 className="font-semibold">Log interaction with {contactName}</h2>
+        <p className="text-xs text-slate-500">
+          Records what happened so the strategy evolves over time. Press Enter in tag fields to add each item.
+          Drift signals or repeated confidence decreases will flag the strategy for re-analysis.
+        </p>
+
+        <div>
+          <label className="text-xs font-medium text-slate-500">What you sent</label>
+          <textarea value={whatSent} onChange={(e) => setWhatSent(e.target.value)} rows={3}
+            placeholder="Key points of what you said or sent…"
+            className="mt-1 w-full border border-slate-300 rounded-lg px-3 py-2 text-sm resize-y" />
+        </div>
+
+        <div>
+          <label className="text-xs font-medium text-slate-500">Response observed</label>
+          <textarea value={responseObserved} onChange={(e) => setResponseObserved(e.target.value)} rows={3}
+            placeholder="What they said or did in response — or 'no response yet'"
+            className="mt-1 w-full border border-slate-300 rounded-lg px-3 py-2 text-sm resize-y" />
+        </div>
+
+        <div className="grid grid-cols-2 gap-2">
+          <div>
+            <label className="text-xs font-medium text-slate-500">Response classification</label>
+            <input value={responseClassification} onChange={(e) => setResponseClassification(e.target.value)}
+              placeholder="e.g. positive, objection, silence"
+              className="mt-1 w-full border border-slate-300 rounded-lg px-3 py-2 text-sm" />
+          </div>
+          <div>
+            <label className="text-xs font-medium text-slate-500">Confidence change</label>
+            <select value={confidenceChange} onChange={(e) => setConfidenceChange(e.target.value as typeof confidenceChange)}
+              className="mt-1 w-full border border-slate-300 rounded-lg px-3 py-2 text-sm bg-white">
+              <option value="none">No change</option>
+              <option value="increase">Increase — strategy is working</option>
+              <option value="decrease">Decrease — something is off</option>
+            </select>
+          </div>
+        </div>
+
+        <div>
+          <label className="text-xs font-medium text-slate-500">Friction signals (Enter to add)</label>
+          <div className="mt-1">
+            <TagInput value={frictionSignals} onChange={setFrictionSignals}
+              placeholder="e.g. pushed back on price…" />
+          </div>
+        </div>
+
+        <div>
+          <label className="text-xs font-medium text-slate-500">Drift signals — surprises (Enter to add)</label>
+          <div className="mt-1">
+            <TagInput value={driftSignals} onChange={setDriftSignals}
+              placeholder="e.g. mentioned new budget constraint…" />
+          </div>
+        </div>
+
+        <div>
+          <label className="text-xs font-medium text-slate-500">Recommended strategy updates (Enter to add)</label>
+          <div className="mt-1">
+            <TagInput value={recommendedUpdates} onChange={setRecommendedUpdates}
+              placeholder="e.g. lead with flexibility next time…" />
+          </div>
+        </div>
+
+        {error && <p className="text-sm text-red-600">{error}</p>}
+        <div className="flex justify-end gap-2">
+          <button type="button" onClick={onClose} className="px-4 py-2 text-sm text-slate-500">Cancel</button>
+          <button
+            type="button"
+            onClick={() => submit.mutate()}
+            disabled={submit.isPending || !whatSent.trim() || !responseObserved.trim()}
+            className="bg-indigo-600 text-white rounded-lg px-4 py-2 text-sm disabled:opacity-50"
+          >
+            {submit.isPending ? "Saving…" : "Log interaction"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Analyze dialog ───────────────────────────────────────────────────────────
 
 function AnalyzeDialog({
   contactId, contactName, businesses, onClose,
@@ -226,6 +546,8 @@ function AnalyzeDialog({
   );
 }
 
+// ─── Strategy display ─────────────────────────────────────────────────────────
+
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div className="bg-white border border-slate-200 rounded-xl p-4">
@@ -238,7 +560,7 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 function StrategyFull({
   strategy, comm, persona,
 }: {
-  strategy: { allowed_zone: string; updated_at: string; re_analysis_recommended: boolean; re_analysis_reason: string };
+  strategy: { id: string; allowed_zone: string; updated_at: string; re_analysis_recommended: boolean; re_analysis_reason: string };
   comm: Record<string, unknown>;
   persona: Record<string, unknown> | null;
 }) {

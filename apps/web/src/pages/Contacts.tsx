@@ -27,6 +27,7 @@ export default function Contacts() {
   const [humansOnly, setHumansOnly] = useState(true);
   const [importMsg, setImportMsg] = useState("");
   const [syncingId, setSyncingId] = useState<string | null>(null);
+  const [agentEdgeSyncing, setAgentEdgeSyncing] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
   const qc = useQueryClient();
 
@@ -71,6 +72,19 @@ export default function Contacts() {
     } catch (e) {
       setImportMsg(`Error: ${(e as Error).message}`);
     }
+  }
+
+  async function handleAgentEdgeSync() {
+    setAgentEdgeSyncing(true);
+    setImportMsg("");
+    try {
+      const result = await api<{ total: number; inserted: number; updated: number }>("agentedge-sync", {});
+      setImportMsg(`AgentEdge sync done: ${result.inserted} new, ${result.updated} updated (${result.total} processed)`);
+      qc.invalidateQueries({ queryKey: ["contacts"] });
+    } catch (e) {
+      setImportMsg(`AgentEdge sync error: ${(e as Error).message}`);
+    }
+    setAgentEdgeSyncing(false);
   }
 
   async function handleGoogleSync(accountId: string) {
@@ -119,6 +133,15 @@ export default function Contacts() {
               {syncingId === a.id ? "Syncing…" : `Sync ${a.email_address.split("@")[0]}`}
             </button>
           ))}
+          <button
+            onClick={handleAgentEdgeSync}
+            disabled={agentEdgeSyncing}
+            className="flex items-center gap-1.5 text-sm border border-slate-300 rounded-lg px-3 py-1.5 bg-white hover:bg-slate-50 disabled:opacity-50"
+            title="Merge contacts from AgentEdge CRM (requires AgentEdge service key in Settings → API keys)"
+          >
+            <RefreshCw className={`w-4 h-4 ${agentEdgeSyncing ? "animate-spin" : ""}`} />
+            {agentEdgeSyncing ? "Syncing…" : "Sync AgentEdge"}
+          </button>
         </div>
       </div>
 

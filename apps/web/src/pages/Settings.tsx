@@ -337,6 +337,7 @@ const KEY_KINDS = [
   { kind: "anthropic_api_key", label: "Anthropic API key", hint: "pipeline stage 3, triage, drafts" },
   { kind: "twilio_account_sid", label: "Twilio Account SID", hint: "texting (when you go live)" },
   { kind: "twilio_auth_token", label: "Twilio Auth Token", hint: "texting (when you go live)" },
+  { kind: "agentedge_service_key", label: "AgentEdge service role key", hint: "Contacts → Sync from AgentEdge CRM" },
 ];
 
 function ApiKeys() {
