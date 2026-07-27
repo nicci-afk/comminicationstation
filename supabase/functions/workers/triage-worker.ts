@@ -5,6 +5,7 @@
 import { handleOptions, runWorker, checkSpend, recordSpend, getUserSecret } from "./_shared/util.ts";
 import { callAnthropic } from "./_shared/llm.ts";
 import { triageSystem } from "./_shared/prompts.ts";
+import { maybePushToAgentedge } from "./_shared/agentedge-push.ts";
 
 const TRIAGE_MODEL = "claude-haiku-4-5";
 
@@ -63,6 +64,10 @@ export default async function handler(req: Request): Promise<Response> {
       },
     });
     if (error) throw new Error(error.message);
+
+    // Phase 3: auto-push booking/BDM/supplier/promotion to AgentEdge
+    const pushedCategory = String(decision.category ?? "");
+    await maybePushToAgentedge(db, msg.user_id, messageId, pushedCategory);
 
     await recordSpend(db, {
       userId: msg.user_id,

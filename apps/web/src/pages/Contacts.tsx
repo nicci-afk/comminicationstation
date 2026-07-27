@@ -28,6 +28,7 @@ export default function Contacts() {
   const [importMsg, setImportMsg] = useState("");
   const [syncingId, setSyncingId] = useState<string | null>(null);
   const [agentEdgeSyncing, setAgentEdgeSyncing] = useState(false);
+  const [aeImporting, setAeImporting] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
   const qc = useQueryClient();
 
@@ -87,6 +88,28 @@ export default function Contacts() {
     setAgentEdgeSyncing(false);
   }
 
+  interface AeImportResult {
+    ok: boolean;
+    phase1: { open_needs_response: number; synced: number; already_resolved: number; gaps: number };
+    phase2: { bdms_and_suppliers_approved: number; bookings_created: number; booking_candidates_processed: number };
+  }
+
+  async function handleAgentEdgeImport() {
+    setAeImporting(true);
+    setImportMsg("");
+    try {
+      const r = await api<AeImportResult>("agentedge-historical-import", {});
+      setImportMsg(
+        `AgentEdge history import done — ` +
+        `Phase 1: ${r.phase1.synced} synced, ${r.phase1.already_resolved} already resolved, ${r.phase1.gaps} gaps out of ${r.phase1.open_needs_response} open · ` +
+        `Phase 2: ${r.phase2.bdms_and_suppliers_approved} contacts approved, ${r.phase2.bookings_created} bookings created`
+      );
+    } catch (e) {
+      setImportMsg(`AgentEdge import error: ${(e as Error).message}`);
+    }
+    setAeImporting(false);
+  }
+
   async function handleGoogleSync(accountId: string) {
     setSyncingId(accountId);
     setImportMsg("");
@@ -141,6 +164,15 @@ export default function Contacts() {
           >
             <RefreshCw className={`w-4 h-4 ${agentEdgeSyncing ? "animate-spin" : ""}`} />
             {agentEdgeSyncing ? "Syncing…" : "Sync AgentEdge"}
+          </button>
+          <button
+            onClick={handleAgentEdgeImport}
+            disabled={aeImporting}
+            className="flex items-center gap-1.5 text-sm border border-indigo-300 rounded-lg px-3 py-1.5 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 disabled:opacity-50"
+            title="Cross-reference AgentEdge email history with Command Center and auto-approve pending BDMs/bookings"
+          >
+            <RefreshCw className={`w-4 h-4 ${aeImporting ? "animate-spin" : ""}`} />
+            {aeImporting ? "Importing…" : "Import AgentEdge History"}
           </button>
         </div>
       </div>
