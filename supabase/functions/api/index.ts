@@ -24,6 +24,7 @@ import agentedgeSync from "./agentedge-sync.ts";
 import agentedgeHistoricalImport from "./agentedge-historical-import.ts";
 import gmailDeepBackfill from "./gmail-deep-backfill.ts";
 import spamBlock from "./spam-block.ts";
+import contactLink from "./contact-link.ts";
 import { corsHeaders } from "./_shared/util.ts";
 
 type Handler = (req: Request) => Promise<Response>;
@@ -47,6 +48,7 @@ const routes: Record<string, Handler> = {
   "agentedge-historical-import": agentedgeHistoricalImport,
   "gmail-deep-backfill": gmailDeepBackfill,
   "spam-block": spamBlock,
+  "contact-link": contactLink,
 };
 
 Deno.serve(async (req) => {

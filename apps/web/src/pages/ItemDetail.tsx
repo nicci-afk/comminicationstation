@@ -4,7 +4,7 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, Ban, Check, Clock, Send, Sparkles, X } from "lucide-react";
+import { ArrowLeft, Ban, Check, Clock, Send, Sparkles, UserPlus, X } from "lucide-react";
 import { api, supabase } from "../lib/supabase";
 
 const CATEGORIES: [string, string][] = [
@@ -43,6 +43,10 @@ export default function ItemDetail() {
   const [smsText, setSmsText] = useState("");
   const [error, setError] = useState("");
   const [blockStatus, setBlockStatus] = useState<"" | "confirming" | "blocking" | "done">("");
+  const [linkSearch, setLinkSearch] = useState("");
+  const [linkResults, setLinkResults] = useState<{ id: string; display_name: string; kind: string }[]>([]);
+  const [linkSelected, setLinkSelected] = useState<{ id: string; display_name: string } | null>(null);
+  const [linkStatus, setLinkStatus] = useState<"" | "saving" | "saved">("");
   const [recatCategory, setRecatCategory] = useState("");
   const [recatBusiness, setRecatBusiness] = useState<string | null>(null);
   const [recatInit, setRecatInit] = useState(false);
@@ -95,6 +99,33 @@ export default function ItemDetail() {
     mutationFn: async () =>
       await api("interaction-update", { mode: "auto", strategy_id: strategy!.id, queue_item_id: id }),
     onError: (e) => setError((e as Error).message),
+  });
+
+  useEffect(() => {
+    if (!linkSearch.trim()) { setLinkResults([]); return; }
+    const t = setTimeout(async () => {
+      const { data } = await supabase
+        .from("contacts")
+        .select("id, display_name, kind")
+        .ilike("display_name", `%${linkSearch}%`)
+        .is("merged_into_contact_id", null)
+        .limit(6);
+      setLinkResults((data as { id: string; display_name: string; kind: string }[]) ?? []);
+    }, 250);
+    return () => clearTimeout(t);
+  }, [linkSearch]);
+
+  const linkSender = useMutation({
+    mutationFn: async () => await api("contact-link", { queue_item_id: id, contact_id: linkSelected!.id }),
+    onSuccess: () => {
+      setLinkStatus("saved");
+      setLinkSearch("");
+      setLinkSelected(null);
+      qc.invalidateQueries({ queryKey: ["item", id] });
+      qc.invalidateQueries({ queryKey: ["queue"] });
+      qc.invalidateQueries({ queryKey: ["contact", item?.contact_id] });
+    },
+    onError: (e) => { setError((e as Error).message); setLinkStatus(""); },
   });
 
   useEffect(() => {
@@ -298,6 +329,62 @@ export default function ItemDetail() {
               {recatStatus === "saving" ? "Saving…" : recatStatus === "saved" ? "Saved ✓ · rule created" : "Save & train rule"}
             </button>
           </div>
+        </div>
+
+        <div className="bg-white border border-slate-200 rounded-xl p-4">
+          <h3 className="text-sm font-semibold flex items-center gap-1">
+            <UserPlus className="w-4 h-4 text-slate-400" />
+            {contact?.kind === "unknown" ? "Who is this from?" : "Reassign sender"}
+          </h3>
+          {contact?.kind === "unknown" && (
+            <p className="text-xs text-amber-600 mt-1">
+              <strong>{item.sender_identifier}</strong> hasn't been linked to a contact yet.
+            </p>
+          )}
+          <div className="mt-2 relative">
+            <input
+              type="text"
+              value={linkSearch}
+              onChange={(e) => { setLinkSearch(e.target.value); setLinkSelected(null); setLinkStatus(""); }}
+              placeholder="Search contacts by name…"
+              className="w-full border border-slate-200 rounded-lg px-2 py-1.5 text-sm"
+            />
+            {linkResults.length > 0 && !linkSelected && (
+              <ul className="absolute z-10 left-0 right-0 mt-1 bg-white border border-slate-200 rounded-lg shadow text-sm overflow-hidden">
+                {linkResults.map((c) => (
+                  <li key={c.id}>
+                    <button
+                      onClick={() => { setLinkSelected(c); setLinkSearch(c.display_name); setLinkResults([]); }}
+                      className="w-full text-left px-3 py-2 hover:bg-slate-50"
+                    >
+                      {c.display_name}
+                      {c.kind === "unknown" && (
+                        <span className="ml-1 text-xs text-slate-400">(unknown)</span>
+                      )}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+          {linkSelected && linkStatus !== "saved" && (
+            <div className="mt-2">
+              <p className="text-xs text-slate-600">
+                Links <strong>{item.sender_identifier}</strong> to{" "}
+                <strong>{linkSelected.display_name}</strong> — updates all past and future messages.
+              </p>
+              <button
+                onClick={() => { setLinkStatus("saving"); linkSender.mutate(); }}
+                disabled={linkStatus === "saving"}
+                className="mt-1 w-full bg-indigo-600 text-white rounded-lg py-1.5 text-sm hover:bg-indigo-700 disabled:opacity-50"
+              >
+                {linkStatus === "saving" ? "Linking…" : `Link to ${linkSelected.display_name}`}
+              </button>
+            </div>
+          )}
+          {linkStatus === "saved" && (
+            <p className="mt-2 text-xs text-emerald-700">Linked ✓ — all messages updated.</p>
+          )}
         </div>
 
         <StrategyPanel item={item} strategy={strategy} comm={comm ?? null} />
