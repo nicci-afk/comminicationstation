@@ -217,6 +217,44 @@ async function backfill(
   }
 }
 
+async function deepBackfill(
+  db: SupabaseClient,
+  account: GmailAccountRow,
+  token: string,
+  job: Record<string, unknown>,
+) {
+  const pageToken = job.page_token as string | undefined;
+  const imported = Number(job.imported ?? 0);
+
+  const params = new URLSearchParams({
+    q: "newer_than:180d -in:chat -in:draft -in:spam -in:trash",
+    maxResults: "40",
+  });
+  if (pageToken) params.set("pageToken", pageToken);
+  const list = await gmailJson(token, `/users/me/messages?${params}`);
+  const ids = ((list.messages as { id: string }[]) ?? []).map((m) => m.id);
+
+  for (const id of ids) {
+    await ingestMessageById(db, account, token, id, true);
+  }
+
+  const nextToken = list.nextPageToken as string | undefined;
+  const total = imported + ids.length;
+
+  if (nextToken) {
+    await enqueue(db, "sync_jobs", {
+      kind: "deep_backfill",
+      gmail_account_id: account.id,
+      page_token: nextToken,
+      imported: total,
+    });
+  } else {
+    await db.from("gmail_accounts")
+      .update({ last_sync_at: new Date().toISOString(), last_error: null })
+      .eq("id", account.id);
+  }
+}
+
 async function fullResync(db: SupabaseClient, account: GmailAccountRow, token: string) {
   // Catch up on the window we may have missed, then reset the baseline.
   const params = new URLSearchParams({ q: "newer_than:7d -in:chat -in:draft", maxResults: "100" });
@@ -250,6 +288,7 @@ export default async function handler(req: Request): Promise<Response> {
       const kind = msg.kind as string;
       if (kind === "incremental") await incrementalSync(db, account, token);
       else if (kind === "backfill") await backfill(db, account, token, msg);
+      else if (kind === "deep_backfill") await deepBackfill(db, account, token, msg);
       else if (kind === "renew_watch") await renewWatch(db, account, token);
       else if (kind === "full_resync") await fullResync(db, account, token);
       await unlockAccount(db, accountId);

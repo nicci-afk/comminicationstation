@@ -22,6 +22,7 @@ import contactsVcfImport from "./contacts-vcf-import.ts";
 import contactsGoogleSync from "./contacts-google-sync.ts";
 import agentedgeSync from "./agentedge-sync.ts";
 import agentedgeHistoricalImport from "./agentedge-historical-import.ts";
+import gmailDeepBackfill from "./gmail-deep-backfill.ts";
 import { corsHeaders } from "./_shared/util.ts";
 
 type Handler = (req: Request) => Promise<Response>;
@@ -43,6 +44,7 @@ const routes: Record<string, Handler> = {
   "contacts-google-sync": contactsGoogleSync,
   "agentedge-sync": agentedgeSync,
   "agentedge-historical-import": agentedgeHistoricalImport,
+  "gmail-deep-backfill": gmailDeepBackfill,
 };
 
 Deno.serve(async (req) => {

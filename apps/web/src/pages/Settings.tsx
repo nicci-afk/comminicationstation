@@ -119,6 +119,7 @@ function Connections() {
   const qc = useQueryClient();
   const [err, setErr] = useState("");
   const [oauthNotice, setOauthNotice] = useState<{ kind: "ok" | "err"; msg: string } | null>(null);
+  const [deepBackfillMsg, setDeepBackfillMsg] = useState("");
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -166,6 +167,15 @@ function Connections() {
 
   const googleReady = Boolean(cfg?.google_client_id) && Boolean(cfg?.google_client_secret);
 
+  const deepBackfill = useMutation({
+    mutationFn: async () => await api<{ ok: boolean; accounts_queued: number; emails: string[] }>("gmail-deep-backfill", {}),
+    onSuccess: (d) => {
+      setDeepBackfillMsg(`Queued 6-month backfill for ${d.accounts_queued} account${d.accounts_queued !== 1 ? "s" : ""}. New mail will appear in your Backlog over the next few minutes.`);
+      qc.invalidateQueries({ queryKey: ["gmail-accounts"] });
+    },
+    onError: (e) => setDeepBackfillMsg(`Error: ${(e as Error).message}`),
+  });
+
   return (
     <>
       <Card
@@ -199,13 +209,28 @@ function Connections() {
           ))}
           {accounts.length === 0 && <li className="text-sm text-slate-400">No Gmail accounts connected yet.</li>}
         </ul>
-        <button
-          onClick={() => connect.mutate()}
-          disabled={!googleReady || connect.isPending}
-          className="mt-3 bg-indigo-600 text-white rounded-lg px-4 py-2 text-sm disabled:opacity-50"
-        >
-          {googleReady ? "Connect a Gmail account" : "Add the Google client above first"}
-        </button>
+        <div className="mt-3 flex flex-wrap gap-2">
+          <button
+            onClick={() => connect.mutate()}
+            disabled={!googleReady || connect.isPending}
+            className="bg-indigo-600 text-white rounded-lg px-4 py-2 text-sm disabled:opacity-50"
+          >
+            {googleReady ? "Connect a Gmail account" : "Add the Google client above first"}
+          </button>
+          {accounts.length > 0 && (
+            <button
+              onClick={() => { setDeepBackfillMsg(""); deepBackfill.mutate(); }}
+              disabled={deepBackfill.isPending}
+              className="border border-slate-300 bg-white text-slate-700 rounded-lg px-4 py-2 text-sm hover:bg-slate-50 disabled:opacity-50"
+              title="Pull the last 6 months of mail into Backlog. Already-imported messages are skipped automatically."
+            >
+              {deepBackfill.isPending ? "Queueing…" : "Run 6-month backfill"}
+            </button>
+          )}
+        </div>
+        {deepBackfillMsg && (
+          <p className="mt-2 text-xs text-slate-600">{deepBackfillMsg}</p>
+        )}
       </Card>
 
       {oauthNotice && (
