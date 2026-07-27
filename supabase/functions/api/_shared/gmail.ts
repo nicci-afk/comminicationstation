@@ -213,7 +213,7 @@ export function detectBulk(h: Record<string, string>, fromEmail: string, subject
 
 export const METADATA_HEADERS = [
   "From", "To", "Cc", "Subject", "Message-ID", "In-Reply-To", "References",
-  "Date", "List-Unsubscribe", "List-Id", "Precedence", "Auto-Submitted",
+  "Date", "Reply-To", "List-Unsubscribe", "List-Id", "Precedence", "Auto-Submitted",
   "X-Mailchimp-Id", "X-Campaign-Id", "X-SG-EID", "X-Mailgun-Tag",
 ];
 
@@ -260,13 +260,16 @@ export function buildIngestPayload(
     sent_at: new Date(sentAtMs).toISOString(),
     labels,
     is_unread: labels.includes("UNREAD"),
-    headers: {
-      "message-id": h["message-id"] ?? "",
-      "list-id": h["list-id"] ?? "",
-      "list-unsubscribe": h["list-unsubscribe"] ? "present" : "",
-      precedence: h["precedence"] ?? "",
-      "auto-submitted": h["auto-submitted"] ?? "",
-    },
+    headers: (
+      [
+        ["message-id", h["message-id"]],
+        ["list-id", h["list-id"]],
+        ["list-unsubscribe", h["list-unsubscribe"]],
+        ["precedence", h["precedence"]],
+        ["auto-submitted", h["auto-submitted"]],
+        ["reply-to", h["reply-to"]],
+      ] as [string, string | undefined][]
+    ).filter((e): e is [string, string] => !!e[1]).map(([name, value]) => ({ name, value })),
     bulk: detectBulk(h, from.email, subject),
     backlog: opts.backlog ?? false,
   };
