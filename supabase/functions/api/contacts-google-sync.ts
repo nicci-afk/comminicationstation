@@ -11,6 +11,7 @@ interface PersonConnection {
   names?: { displayName?: string }[];
   emailAddresses?: { value?: string }[];
   phoneNumbers?: { value?: string }[];
+  birthdays?: { date?: { year?: number; month?: number; day?: number } }[];
 }
 
 export default async function handler(req: Request): Promise<Response> {
@@ -38,7 +39,7 @@ export default async function handler(req: Request): Promise<Response> {
     let pageToken: string | undefined;
     do {
       const url = new URL("https://people.googleapis.com/v1/people/me/connections");
-      url.searchParams.set("personFields", "names,emailAddresses,phoneNumbers");
+      url.searchParams.set("personFields", "names,emailAddresses,phoneNumbers,birthdays");
       url.searchParams.set("pageSize", "1000");
       if (pageToken) url.searchParams.set("pageToken", pageToken);
 
@@ -87,6 +88,10 @@ export default async function handler(req: Request): Promise<Response> {
         const phones = (conn.phoneNumbers ?? [])
           .map((p) => p.value?.replace(/[\s\-\(\)\.]/g, ""))
           .filter((p): p is string => !!p && p.length > 3);
+        const bdRaw = conn.birthdays?.[0]?.date;
+        const birthday = bdRaw?.year && bdRaw?.month && bdRaw?.day
+          ? `${bdRaw.year}-${String(bdRaw.month).padStart(2, "0")}-${String(bdRaw.day).padStart(2, "0")}`
+          : null;
 
         if (!displayName && emails.length === 0) { skipped++; continue; }
 
@@ -97,16 +102,15 @@ export default async function handler(req: Request): Promise<Response> {
         }
 
         if (contactId) {
-          if (displayName) {
-            await db.from("contacts")
-              .update({ display_name: displayName, kind: "human" })
-              .eq("id", contactId).eq("user_id", userId);
-          }
+          const patch: Record<string, unknown> = { kind: "human" };
+          if (displayName) patch.display_name = displayName;
+          if (birthday) patch.birthday = birthday;
+          await db.from("contacts").update(patch).eq("id", contactId).eq("user_id", userId);
           updated++;
         } else {
           const { data: created, error: ce } = await db
             .from("contacts")
-            .insert({ user_id: userId, display_name: displayName || emails[0] || "Unknown", kind: "human" })
+            .insert({ user_id: userId, display_name: displayName || emails[0] || "Unknown", kind: "human", birthday })
             .select("id").single();
           if (ce) throw new Error(ce.message);
           contactId = created.id as string;
@@ -116,13 +120,15 @@ export default async function handler(req: Request): Promise<Response> {
 
         for (const email of emails) {
           await db.from("contact_channels").upsert(
-            { contact_id: contactId, user_id: userId, channel_type: "email", canonical_value: email },
+            { contact_id: contactId, user_id: userId, channel_type: "email", raw_value: email, canonical_value: email },
             { onConflict: "user_id,channel_type,canonical_value", ignoreDuplicates: true }
           );
         }
-        for (const phone of phones) {
+        for (const raw of (conn.phoneNumbers ?? []).map((p) => p.value?.trim()).filter(Boolean) as string[]) {
+          const canonical = raw.replace(/[\s\-\(\)\.]/g, "");
+          if (!canonical || canonical.length <= 3) continue;
           await db.from("contact_channels").upsert(
-            { contact_id: contactId, user_id: userId, channel_type: "phone", canonical_value: phone },
+            { contact_id: contactId, user_id: userId, channel_type: "phone", raw_value: raw, canonical_value: canonical },
             { onConflict: "user_id,channel_type,canonical_value", ignoreDuplicates: true }
           );
         }

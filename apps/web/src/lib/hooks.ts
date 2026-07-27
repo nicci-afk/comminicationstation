@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "./supabase";
-import type { Business, Contact, ContactStrategy, Message, Profile, QueueEvent, QueueItem } from "./types";
+import type { Business, Contact, ContactChannel, ContactStrategy, Message, Profile, QueueEvent, QueueItem } from "./types";
 
 export function useProfile() {
   return useQuery({
@@ -123,6 +123,23 @@ export function useContact(contactId: string | null) {
       const { data, error } = await supabase.from("contacts").select("*").eq("id", contactId!).maybeSingle();
       if (error) throw error;
       return data;
+    },
+  });
+}
+
+export function useContactChannels(contactId: string | null) {
+  return useQuery({
+    queryKey: ["contact-channels", contactId],
+    enabled: !!contactId,
+    queryFn: async (): Promise<ContactChannel[]> => {
+      const { data, error } = await supabase
+        .from("contact_channels")
+        .select("id,channel_type,raw_value,canonical_value")
+        .eq("contact_id", contactId!)
+        .order("channel_type")
+        .order("canonical_value");
+      if (error) throw error;
+      return data ?? [];
     },
   });
 }

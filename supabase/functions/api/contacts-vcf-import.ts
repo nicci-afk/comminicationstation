@@ -7,7 +7,9 @@ import { handleOptions, HttpError, json, requireUser, serviceClient } from "./_s
 interface ParsedContact {
   displayName: string;
   emails: string[];
-  phones: string[];
+  phones: string[];      // canonical (stripped) — for dedup
+  rawPhones: string[];   // original formatted — for display
+  birthday: string | null;
 }
 
 function decodeVCardValue(v: string): string {
@@ -27,6 +29,8 @@ function parseVCard(text: string): ParsedContact[] {
     let displayName = "";
     const emails: string[] = [];
     const phones: string[] = [];
+    const rawPhones: string[] = [];
+    let birthday: string | null = null;
 
     for (const line of lines) {
       const ci = line.indexOf(":");
@@ -46,13 +50,23 @@ function parseVCard(text: string): ParsedContact[] {
         const email = decodeVCardValue(value).toLowerCase().trim();
         if (email.includes("@") && !emails.includes(email)) emails.push(email);
       } else if (key.startsWith("TEL")) {
-        const phone = decodeVCardValue(value).replace(/[\s\-\(\)\.]/g, "");
-        if (phone && !phones.includes(phone)) phones.push(phone);
+        const raw = decodeVCardValue(value).trim();
+        const canonical = raw.replace(/[\s\-\(\)\.]/g, "");
+        if (canonical && !phones.includes(canonical)) {
+          phones.push(canonical);
+          rawPhones.push(raw);
+        }
+      } else if (key === "BDAY" || key.startsWith("BDAY;")) {
+        // Normalise YYYYMMDD or YYYY-MM-DD into YYYY-MM-DD (Postgres date)
+        const raw = decodeVCardValue(value).replace(/[^0-9]/g, "");
+        if (raw.length === 8) {
+          birthday = `${raw.slice(0, 4)}-${raw.slice(4, 6)}-${raw.slice(6, 8)}`;
+        }
       }
     }
 
     if (displayName || emails.length > 0) {
-      results.push({ displayName: displayName || emails[0] || "Unknown", emails, phones });
+      results.push({ displayName: displayName || emails[0] || "Unknown", emails, phones, rawPhones, birthday });
     }
   }
   return results;
@@ -97,13 +111,13 @@ export default async function handler(req: Request): Promise<Response> {
 
         if (contactId) {
           await db.from("contacts")
-            .update({ display_name: c.displayName, kind: "human" })
+            .update({ display_name: c.displayName, kind: "human", ...(c.birthday ? { birthday: c.birthday } : {}) })
             .eq("id", contactId).eq("user_id", userId);
           updated++;
         } else {
           const { data: created, error: ce } = await db
             .from("contacts")
-            .insert({ user_id: userId, display_name: c.displayName, kind: "human" })
+            .insert({ user_id: userId, display_name: c.displayName, kind: "human", birthday: c.birthday })
             .select("id").single();
           if (ce) throw new Error(ce.message);
           contactId = created.id as string;
@@ -114,13 +128,14 @@ export default async function handler(req: Request): Promise<Response> {
 
         for (const email of c.emails) {
           await db.from("contact_channels").upsert(
-            { contact_id: contactId, user_id: userId, channel_type: "email", canonical_value: email },
+            { contact_id: contactId, user_id: userId, channel_type: "email", raw_value: email, canonical_value: email },
             { onConflict: "user_id,channel_type,canonical_value", ignoreDuplicates: true }
           );
         }
-        for (const phone of c.phones) {
+        for (const phone of c.rawPhones) {
+          const canonical = phone.replace(/[\s\-\(\)\.]/g, "");
           await db.from("contact_channels").upsert(
-            { contact_id: contactId, user_id: userId, channel_type: "phone", canonical_value: phone },
+            { contact_id: contactId, user_id: userId, channel_type: "phone", raw_value: phone, canonical_value: canonical },
             { onConflict: "user_id,channel_type,canonical_value", ignoreDuplicates: true }
           );
         }

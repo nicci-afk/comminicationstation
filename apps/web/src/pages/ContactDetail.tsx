@@ -5,7 +5,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, Play, Star } from "lucide-react";
 import { api, supabase } from "../lib/supabase";
-import { fmtWhen, useArtifactOutput, useBusinesses, useContact, useStrategies } from "../lib/hooks";
+import { fmtWhen, useArtifactOutput, useBusinesses, useContact, useContactChannels, useStrategies } from "../lib/hooks";
 import type { PipelineRun } from "../lib/types";
 
 export default function ContactDetail() {
@@ -13,6 +13,7 @@ export default function ContactDetail() {
   const nav = useNavigate();
   const qc = useQueryClient();
   const { data: contact } = useContact(id ?? null);
+  const { data: channels = [] } = useContactChannels(id ?? null);
   const { data: strategies = [] } = useStrategies(id ?? null);
   const { data: businesses = [] } = useBusinesses();
   const [showAnalyze, setShowAnalyze] = useState(false);
@@ -63,6 +64,39 @@ export default function ContactDetail() {
         <span className="text-xs px-2 py-1 bg-slate-100 rounded-full text-slate-500">{contact.kind}</span>
         <span className="text-xs text-slate-400">seen {fmtWhen(contact.last_seen_at)}</span>
       </div>
+
+      {(channels.length > 0 || contact.birthday || contact.notes) && (
+        <div className="mt-4 bg-white border border-slate-200 rounded-xl p-4 space-y-1.5">
+          {channels.filter((ch) => ch.channel_type === "email").map((ch) => (
+            <div key={ch.id} className="flex items-center gap-2 text-sm">
+              <span className="text-xs font-medium text-slate-400 w-10 shrink-0">email</span>
+              <a href={`mailto:${ch.canonical_value}`} className="text-indigo-600 hover:underline truncate">
+                {ch.canonical_value}
+              </a>
+            </div>
+          ))}
+          {channels.filter((ch) => ch.channel_type === "phone").map((ch) => (
+            <div key={ch.id} className="flex items-center gap-2 text-sm">
+              <span className="text-xs font-medium text-slate-400 w-10 shrink-0">phone</span>
+              <a href={`tel:${ch.canonical_value}`} className="text-slate-700 hover:underline">
+                {ch.raw_value || ch.canonical_value}
+              </a>
+            </div>
+          ))}
+          {contact.birthday && (
+            <div className="flex items-center gap-2 text-sm">
+              <span className="text-xs font-medium text-slate-400 w-10 shrink-0">bday</span>
+              <span className="text-slate-700">{new Date(contact.birthday + "T00:00:00").toLocaleDateString(undefined, { month: "long", day: "numeric", year: "numeric" })}</span>
+            </div>
+          )}
+          {contact.notes && (
+            <div className="flex gap-2 text-sm pt-1 border-t border-slate-100">
+              <span className="text-xs font-medium text-slate-400 w-10 shrink-0 pt-0.5">notes</span>
+              <span className="text-slate-600 whitespace-pre-wrap">{contact.notes}</span>
+            </div>
+          )}
+        </div>
+      )}
 
       {activeRun ? (
         <div className="mt-4 bg-indigo-50 border border-indigo-200 rounded-xl p-4 text-sm">

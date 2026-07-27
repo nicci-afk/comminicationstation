@@ -65,7 +65,15 @@ export interface Contact {
   kind: "human" | "automated" | "organization" | "unknown";
   is_vip: boolean;
   notes: string;
+  birthday: string | null;
   last_seen_at: string;
+}
+
+export interface ContactChannel {
+  id: string;
+  channel_type: "email" | "phone";
+  raw_value: string;
+  canonical_value: string;
 }
 
 export interface ContactStrategy {
