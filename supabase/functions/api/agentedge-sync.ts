@@ -7,15 +7,8 @@ import { getUserSecret, handleOptions, HttpError, json, requireUser, serviceClie
 const AGENTEDGE_URL = "https://iitrvppynxisvhztbybw.supabase.co";
 const PAGE_SIZE = 500;
 
-interface CrmClient {
-  display_name: string | null;
-  email: string | null;
-  alt_emails: string[] | null;
-  phone: string | null;
-  alt_phones: string[] | null;
-  date_of_birth: string | null;
-  notes: string | null;
-}
+// Use Record to accept any column layout from AgentEdge
+type CrmClient = Record<string, unknown>;
 
 interface NormalizedContact {
   display_name: string;
@@ -25,29 +18,54 @@ interface NormalizedContact {
   phones: string[];
 }
 
+function pick(obj: CrmClient, ...keys: string[]): string {
+  for (const k of keys) {
+    const v = obj[k];
+    if (typeof v === "string" && v.trim()) return v.trim();
+  }
+  return "";
+}
+
+function pickArr(obj: CrmClient, ...keys: string[]): string[] {
+  for (const k of keys) {
+    const v = obj[k];
+    if (Array.isArray(v)) return v.map(String);
+  }
+  return [];
+}
+
 function normalize(clients: CrmClient[]): NormalizedContact[] {
   return clients
-    .filter((c) => {
-      const name = (c.display_name ?? "").trim();
-      return name.length > 0 && !/^[\d\s+\-().]+$/.test(name);
-    })
     .map((c) => {
+      // Try every plausible name-column variant AgentEdge might use
+      const name = pick(c,
+        "display_name", "full_name", "name", "client_name",
+        "first_name", // will get overridden by combined below if last_name exists too
+      ) || (() => {
+        const fn = pick(c, "first_name");
+        const ln = pick(c, "last_name");
+        return [fn, ln].filter(Boolean).join(" ");
+      })();
+
+      const email = pick(c, "email", "primary_email", "email_address");
+      const altEmails = pickArr(c, "alt_emails", "additional_emails", "other_emails");
+      const phone = pick(c, "phone", "primary_phone", "phone_number", "mobile");
+      const altPhones = pickArr(c, "alt_phones", "additional_phones", "other_phones");
+      const dob = pick(c, "date_of_birth", "birthday", "dob") || null;
+      const notes = pick(c, "notes", "note", "description", "comments");
+
       const emails = [
-        ...(c.email ? [c.email.toLowerCase().trim()] : []),
-        ...(c.alt_emails ?? []).map((e) => e.toLowerCase().trim()),
+        ...(email ? [email.toLowerCase()] : []),
+        ...altEmails.map((e) => e.toLowerCase().trim()),
       ].filter((e) => e.includes("@"));
       const phones = [
-        ...(c.phone ? [c.phone.trim()] : []),
-        ...(c.alt_phones ?? []).map((p) => p.trim()),
+        ...(phone ? [phone] : []),
+        ...altPhones.map((p) => p.trim()),
       ].filter(Boolean);
-      return {
-        display_name: (c.display_name ?? "").trim(),
-        birthday: c.date_of_birth ?? null,
-        notes: c.notes ?? "",
-        emails: [...new Set(emails)],
-        phones: [...new Set(phones)],
-      };
-    });
+
+      return { display_name: name, birthday: dob ?? null, notes, emails: [...new Set(emails)], phones: [...new Set(phones)] };
+    })
+    .filter((c) => c.display_name.length > 0 && !/^[\d\s+\-().]+$/.test(c.display_name));
 }
 
 export default async function handler(req: Request): Promise<Response> {
@@ -70,7 +88,7 @@ export default async function handler(req: Request): Promise<Response> {
     let offset = 0;
     while (true) {
       const resp = await fetch(
-        `${AGENTEDGE_URL}/rest/v1/crm_clients?select=display_name,email,alt_emails,phone,alt_phones,date_of_birth,notes&order=id&limit=${PAGE_SIZE}&offset=${offset}`,
+        `${AGENTEDGE_URL}/rest/v1/crm_clients?select=*&order=id&limit=${PAGE_SIZE}&offset=${offset}`,
         {
           headers: {
             Authorization: `Bearer ${agentedgeKey}`,
@@ -83,7 +101,7 @@ export default async function handler(req: Request): Promise<Response> {
         const body = await resp.text();
         throw new HttpError(502, `AgentEdge API ${resp.status}: ${body.slice(0, 200)}`);
       }
-      const page: CrmClient[] = await resp.json();
+      const page = await resp.json() as CrmClient[];
       allClients.push(...page);
       if (page.length < PAGE_SIZE) break;
       offset += PAGE_SIZE;
