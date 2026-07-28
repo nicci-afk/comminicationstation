@@ -78,6 +78,9 @@ export default async function handler(req: Request): Promise<Response> {
       accountId = created.id as string;
     }
 
+    const grantedScopes = ((tokens as Record<string, unknown>)["scope"] as string | undefined) ?? "";
+    const hasSendScope = grantedScopes.includes("gmail.send");
+
     if (tokens.refresh_token) {
       const { data: secretId, error: vErr } = await db.rpc("vault_upsert_secret", {
         p_name: `gmail_refresh:${accountId}`,
@@ -86,12 +89,12 @@ export default async function handler(req: Request): Promise<Response> {
       if (vErr) throw new Error(vErr.message);
       await db
         .from("gmail_accounts")
-        .update({ refresh_token_secret_id: secretId, status: "active", last_error: null })
+        .update({ refresh_token_secret_id: secretId, status: "active", last_error: null, has_send_scope: hasSendScope })
         .eq("id", accountId);
     } else if (!existing?.refresh_token_secret_id) {
       throw new Error("Google did not return a refresh token — remove the app at myaccount.google.com/permissions and reconnect");
     } else {
-      await db.from("gmail_accounts").update({ status: "active", last_error: null }).eq("id", accountId);
+      await db.from("gmail_accounts").update({ status: "active", last_error: null, has_send_scope: hasSendScope }).eq("id", accountId);
     }
 
     // Watch first (no gap), then backfill.

@@ -72,6 +72,7 @@ export interface GmailAccountRow {
   last_history_id: number | null;
   watch_expiration: string | null;
   backfill_done: boolean;
+  has_send_scope: boolean;
 }
 
 export async function accessTokenForAccount(

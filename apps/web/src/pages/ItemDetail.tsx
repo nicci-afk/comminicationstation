@@ -41,6 +41,7 @@ export default function ItemDetail() {
   const action = useItemAction();
   const [draft, setDraft] = useState<{ text: string; notes: string } | null>(null);
   const [smsText, setSmsText] = useState("");
+  const [emailText, setEmailText] = useState("");
   const [error, setError] = useState("");
   const [blockStatus, setBlockStatus] = useState<"" | "confirming" | "blocking" | "done">("");
   const [linkSearch, setLinkSearch] = useState("");
@@ -69,6 +70,26 @@ export default function ItemDetail() {
   const strategy = strategies.find((s) => s.business_id === item?.business_id) ?? strategies[0] ?? null;
   const { data: comm } = useArtifactOutput(strategy?.comm_artifact_id ?? null);
 
+  const { data: threadAccount } = useQuery({
+    queryKey: ["thread-account", item?.thread_id],
+    queryFn: async () => {
+      if (!item?.thread_id) return null;
+      const { data: thread } = await supabase
+        .from("threads")
+        .select("gmail_account_id")
+        .eq("id", item.thread_id)
+        .maybeSingle();
+      if (!thread?.gmail_account_id) return null;
+      const { data: acct } = await supabase
+        .from("gmail_accounts")
+        .select("id, email_address, has_send_scope")
+        .eq("id", thread.gmail_account_id)
+        .maybeSingle();
+      return acct as { id: string; email_address: string; has_send_scope: boolean } | null;
+    },
+    enabled: !!item && item.channel === "email",
+  });
+
   const draftMutation = useMutation({
     mutationFn: async () => await api<{ draft: string; notes: string }>("draft-reply", { queue_item_id: id }),
     onSuccess: (d) => { setDraft({ text: d.draft, notes: d.notes }); setError(""); },
@@ -83,6 +104,19 @@ export default function ItemDetail() {
       qc.invalidateQueries({ queryKey: ["messages"] });
       qc.invalidateQueries({ queryKey: ["queue"] });
       setError("");
+    },
+    onError: (e) => setError((e as Error).message),
+  });
+
+  const sendEmail = useMutation({
+    mutationFn: async () =>
+      await api("gmail-send", { queue_item_id: id, body: emailText }),
+    onSuccess: () => {
+      setEmailText("");
+      qc.invalidateQueries({ queryKey: ["messages", item?.thread_id] });
+      qc.invalidateQueries({ queryKey: ["queue"] });
+      setError("");
+      nav(-1);
     },
     onError: (e) => setError((e as Error).message),
   });
@@ -249,9 +283,38 @@ export default function ItemDetail() {
               </button>
             </div>
           </div>
+        ) : threadAccount?.has_send_scope ? (
+          <div className="mt-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl p-3">
+            <div className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400 mb-2">
+              <span>Replying as</span>
+              <span className="font-medium text-slate-700 dark:text-slate-300">{threadAccount.email_address}</span>
+              <span>→</span>
+              <span className="font-medium text-slate-700 dark:text-slate-300 truncate">{item.sender_identifier}</span>
+            </div>
+            <textarea
+              value={emailText}
+              onChange={(e) => setEmailText(e.target.value)}
+              placeholder="Write your reply…"
+              className="w-full text-sm border-0 focus:outline-none resize-none bg-transparent dark:text-slate-100 dark:placeholder-slate-500"
+              rows={5}
+            />
+            <div className="flex justify-end mt-1">
+              <button
+                onClick={() => sendEmail.mutate()}
+                disabled={!emailText.trim() || sendEmail.isPending}
+                className="flex items-center gap-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg px-4 py-2 text-sm disabled:opacity-50"
+              >
+                <Send className="w-4 h-4" />
+                {sendEmail.isPending ? "Sending…" : "Send"}
+              </button>
+            </div>
+          </div>
         ) : (
           <p className="mt-4 text-xs text-slate-400 dark:text-slate-500">
-            Reply from Gmail as usual — the moment your reply lands in Sent, this flips to "responded" automatically (with the evidence shown on the right).
+            Reply from Gmail as usual — the moment your reply lands in Sent, this flips to "responded" automatically.
+            {threadAccount !== undefined && !threadAccount?.has_send_scope && (
+              <> <Link to="/settings" className="text-indigo-600 dark:text-indigo-400 hover:underline">Reconnect Gmail in Settings</Link> to reply directly from here.</>
+            )}
           </p>
         )}
 

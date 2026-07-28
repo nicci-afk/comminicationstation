@@ -10,6 +10,7 @@ import gmailOauthStart from "./gmail-oauth-start.ts";
 import gmailOauthCallback from "./gmail-oauth-callback.ts";
 import gmailPush from "./gmail-push.ts";
 import gmailGetBody from "./gmail-get-body.ts";
+import gmailSend from "./gmail-send.ts";
 import pipelineStart from "./pipeline-start.ts";
 import draftReply from "./draft-reply.ts";
 import interactionUpdate from "./interaction-update.ts";
@@ -35,6 +36,7 @@ const routes: Record<string, Handler> = {
   "gmail-oauth-callback": gmailOauthCallback,
   "gmail-push": gmailPush,
   "gmail-get-body": gmailGetBody,
+  "gmail-send": gmailSend,
   "pipeline-start": pipelineStart,
   "draft-reply": draftReply,
   "interaction-update": interactionUpdate,

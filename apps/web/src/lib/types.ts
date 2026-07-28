@@ -112,6 +112,7 @@ export interface GmailAccount {
   watch_expiration: string | null;
   backfill_done: boolean;
   last_error: string | null;
+  has_send_scope: boolean;
 }
 
 export interface Profile {
