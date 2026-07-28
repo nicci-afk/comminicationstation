@@ -76,7 +76,49 @@ export default async function handler(req: Request): Promise<Response> {
       return json({ ok: true, phone_number: bought.phone_number });
     }
 
-    throw new HttpError(400, "action must be 'search' or 'purchase'");
+    // Register an existing number already owned in Twilio — updates its webhook to point here.
+    if (body.action === "register") {
+      const rawPhone = (body.phone_number as string ?? "").replace(/\D/g, "");
+      if (!rawPhone) throw new HttpError(400, "phone_number required");
+      const e164 = rawPhone.startsWith("1") ? `+${rawPhone}` : `+1${rawPhone}`;
+      const base = ((await getConfig(db, "worker_base_url"))?.url as string) ??
+        `${SUPABASE_URL}/functions/v1`;
+
+      // Look up the number in the account to get its SID
+      const lookup = await fetch(
+        `https://api.twilio.com/2010-04-01/Accounts/${sid}/IncomingPhoneNumbers.json?PhoneNumber=${encodeURIComponent(e164)}`,
+        { headers: { Authorization: auth } },
+      );
+      if (!lookup.ok) throw new HttpError(502, `Twilio lookup failed: ${(await lookup.text()).slice(0, 300)}`);
+      const lookupData = await lookup.json();
+      const existing = lookupData.incoming_phone_numbers?.[0];
+      if (!existing) throw new HttpError(404, `Number ${e164} not found in your Twilio account. Make sure the Account SID/Auth Token match the account that owns this number.`);
+
+      // Update the webhook on the existing number
+      const update = await fetch(
+        `https://api.twilio.com/2010-04-01/Accounts/${sid}/IncomingPhoneNumbers/${existing.sid}.json`,
+        {
+          method: "POST",
+          headers: { Authorization: auth, "Content-Type": "application/x-www-form-urlencoded" },
+          body: new URLSearchParams({
+            SmsUrl: `${base}/twilio-inbound`,
+            SmsMethod: "POST",
+          }),
+        },
+      );
+      if (!update.ok) throw new HttpError(502, `Twilio webhook update failed: ${(await update.text()).slice(0, 300)}`);
+      const updated = await update.json();
+
+      // Upsert into twilio_numbers
+      const { error } = await db.from("twilio_numbers").upsert(
+        { user_id: userId, phone_e164: updated.phone_number, friendly_name: updated.friendly_name ?? "", status: "active" },
+        { onConflict: "phone_e164" },
+      );
+      if (error) throw new Error(error.message);
+      return json({ ok: true, phone_number: updated.phone_number });
+    }
+
+    throw new HttpError(400, "action must be 'search', 'purchase', or 'register'");
   } catch (e) {
     const status = e instanceof HttpError ? e.status : 500;
     return json({ error: (e as Error).message }, status);

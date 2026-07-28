@@ -344,7 +344,9 @@ function ConfigInput({ label, configKey, current, onSave, secret }: {
 
 function TwilioProvision({ onError }: { onError: (s: string) => void }) {
   const [area, setArea] = useState("314");
+  const [existingPhone, setExistingPhone] = useState("");
   const [numbers, setNumbers] = useState<{ phone_number: string; friendly_name: string; locality: string }[]>([]);
+  const qc = useQueryClient();
   const { data: myNumbers = [] } = useQuery({
     queryKey: ["twilio-numbers"],
     queryFn: async () => {
@@ -359,33 +361,67 @@ function TwilioProvision({ onError }: { onError: (s: string) => void }) {
   });
   const buy = useMutation({
     mutationFn: async (phone: string) => await api("twilio-provision", { action: "purchase", phone_number: phone }),
-    onSuccess: () => window.location.reload(),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["twilio-numbers"] }); setNumbers([]); },
+    onError: (e) => onError((e as Error).message),
+  });
+  const register = useMutation({
+    mutationFn: async () => await api("twilio-provision", { action: "register", phone_number: existingPhone }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["twilio-numbers"] }); setExistingPhone(""); },
     onError: (e) => onError((e as Error).message),
   });
 
   return (
-    <div>
-      {myNumbers.map((n: { id: string; phone_e164: string; status: string }) => (
-        <div key={n.id} className="text-sm">📱 <strong>{n.phone_e164}</strong> · {n.status}</div>
-      ))}
-      <div className="flex gap-2 mt-2">
-        <input value={area} onChange={(e) => setArea(e.target.value)} placeholder="Area code"
-          className="w-24 border border-slate-300 dark:border-slate-600 rounded-lg px-3 py-1.5 text-sm bg-white dark:bg-slate-800 dark:text-slate-100" />
-        <button onClick={() => search.mutate()} disabled={search.isPending}
-          className="text-sm bg-slate-800 text-white rounded-lg px-3 py-1.5 disabled:opacity-50">
-          {search.isPending ? "Searching…" : "Search numbers"}
-        </button>
+    <div className="space-y-4">
+      {myNumbers.length > 0 && (
+        <div className="space-y-1">
+          {myNumbers.map((n: { id: string; phone_e164: string; status: string }) => (
+            <div key={n.id} className="text-sm">📱 <strong>{n.phone_e164}</strong> · {n.status}</div>
+          ))}
+        </div>
+      )}
+
+      {/* Register a number you already own in Twilio */}
+      <div>
+        <p className="text-xs text-slate-500 dark:text-slate-400 mb-1.5">Already own a Twilio number? Register it here — this points its inbound webhook to the Command Center.</p>
+        <div className="flex gap-2">
+          <input
+            value={existingPhone}
+            onChange={(e) => setExistingPhone(e.target.value)}
+            placeholder="e.g. 6188002806"
+            className="flex-1 border border-slate-300 dark:border-slate-600 rounded-lg px-3 py-1.5 text-sm bg-white dark:bg-slate-800 dark:text-slate-100"
+          />
+          <button
+            onClick={() => register.mutate()}
+            disabled={register.isPending || !existingPhone.trim()}
+            className="text-sm bg-indigo-600 text-white rounded-lg px-3 py-1.5 disabled:opacity-50"
+          >
+            {register.isPending ? "Registering…" : "Register existing number"}
+          </button>
+        </div>
       </div>
-      <ul className="mt-2 space-y-1">
-        {numbers.map((n) => (
-          <li key={n.phone_number} className="flex items-center gap-2 text-sm">
-            <span className="flex-1">{n.friendly_name} {n.locality && `· ${n.locality}`}</span>
-            <button onClick={() => buy.mutate(n.phone_number)} className="text-xs bg-indigo-600 text-white rounded px-2 py-1">
-              Buy
-            </button>
-          </li>
-        ))}
-      </ul>
+
+      {/* Search & buy a new number */}
+      <div>
+        <p className="text-xs text-slate-500 dark:text-slate-400 mb-1.5">Or search for a new number to purchase:</p>
+        <div className="flex gap-2">
+          <input value={area} onChange={(e) => setArea(e.target.value)} placeholder="Area code"
+            className="w-24 border border-slate-300 dark:border-slate-600 rounded-lg px-3 py-1.5 text-sm bg-white dark:bg-slate-800 dark:text-slate-100" />
+          <button onClick={() => search.mutate()} disabled={search.isPending}
+            className="text-sm bg-slate-800 text-white rounded-lg px-3 py-1.5 disabled:opacity-50">
+            {search.isPending ? "Searching…" : "Search numbers"}
+          </button>
+        </div>
+        <ul className="mt-2 space-y-1">
+          {numbers.map((n) => (
+            <li key={n.phone_number} className="flex items-center gap-2 text-sm">
+              <span className="flex-1">{n.friendly_name} {n.locality && `· ${n.locality}`}</span>
+              <button onClick={() => buy.mutate(n.phone_number)} disabled={buy.isPending} className="text-xs bg-indigo-600 text-white rounded px-2 py-1 disabled:opacity-50">
+                Buy
+              </button>
+            </li>
+          ))}
+        </ul>
+      </div>
     </div>
   );
 }
