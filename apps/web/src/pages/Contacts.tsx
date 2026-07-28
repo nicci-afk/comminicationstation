@@ -142,7 +142,7 @@ export default function Contacts() {
           />
           <button
             onClick={() => fileRef.current?.click()}
-            className="flex items-center gap-1.5 text-sm border border-slate-300 rounded-lg px-3 py-1.5 bg-white hover:bg-slate-50"
+            className="flex items-center gap-1.5 text-sm border border-slate-300 dark:border-slate-600 rounded-lg px-3 py-1.5 bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800 dark:text-slate-200"
           >
             <Upload className="w-4 h-4" /> Import vCard
           </button>
@@ -151,7 +151,7 @@ export default function Contacts() {
               key={a.id}
               onClick={() => handleGoogleSync(a.id)}
               disabled={syncingId === a.id}
-              className="flex items-center gap-1.5 text-sm border border-slate-300 rounded-lg px-3 py-1.5 bg-white hover:bg-slate-50 disabled:opacity-50"
+              className="flex items-center gap-1.5 text-sm border border-slate-300 dark:border-slate-600 rounded-lg px-3 py-1.5 bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800 dark:text-slate-200 disabled:opacity-50"
               title={`Sync Google Contacts from ${a.email_address}`}
             >
               <RefreshCw className={`w-4 h-4 ${syncingId === a.id ? "animate-spin" : ""}`} />
@@ -161,7 +161,7 @@ export default function Contacts() {
           <button
             onClick={handleAgentEdgeSync}
             disabled={agentEdgeSyncing}
-            className="flex items-center gap-1.5 text-sm border border-slate-300 rounded-lg px-3 py-1.5 bg-white hover:bg-slate-50 disabled:opacity-50"
+            className="flex items-center gap-1.5 text-sm border border-slate-300 dark:border-slate-600 rounded-lg px-3 py-1.5 bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800 dark:text-slate-200 disabled:opacity-50"
             title="Merge contacts from AgentEdge CRM (requires AgentEdge service key in Settings → API keys)"
           >
             <RefreshCw className={`w-4 h-4 ${agentEdgeSyncing ? "animate-spin" : ""}`} />
@@ -170,7 +170,7 @@ export default function Contacts() {
           <button
             onClick={handleAgentEdgeImport}
             disabled={aeImporting}
-            className="flex items-center gap-1.5 text-sm border border-indigo-300 rounded-lg px-3 py-1.5 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 disabled:opacity-50"
+            className="flex items-center gap-1.5 text-sm border border-indigo-300 dark:border-indigo-700 rounded-lg px-3 py-1.5 bg-indigo-50 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-100 dark:hover:bg-indigo-900 disabled:opacity-50"
             title="Cross-reference AgentEdge email history with Command Center and auto-approve pending BDMs/bookings"
           >
             <RefreshCw className={`w-4 h-4 ${aeImporting ? "animate-spin" : ""}`} />
@@ -180,7 +180,7 @@ export default function Contacts() {
       </div>
 
       {importMsg && (
-        <div className="mt-3 text-sm px-3 py-2 rounded-lg bg-indigo-50 text-indigo-800">
+        <div className="mt-3 text-sm px-3 py-2 rounded-lg bg-indigo-50 dark:bg-indigo-950 text-indigo-800 dark:text-indigo-200">
           {importMsg}
           {importMsg.includes("Contacts access denied") && (
             <span className="block mt-1 text-xs">
@@ -195,17 +195,17 @@ export default function Contacts() {
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder="Search…"
-          className="flex-1 border border-slate-300 rounded-lg px-3 py-2 text-sm bg-white"
+          className="flex-1 border border-slate-300 dark:border-slate-600 rounded-lg px-3 py-2 text-sm bg-white dark:bg-slate-900 dark:text-slate-100"
         />
-        <label className="flex items-center gap-2 text-sm text-slate-600">
+        <label className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-300">
           <input type="checkbox" checked={humansOnly} onChange={(e) => setHumansOnly(e.target.checked)} />
           People only
         </label>
       </div>
-      <div className="mt-4 divide-y divide-slate-100 bg-white border border-slate-200 rounded-xl">
-        {isLoading && <div className="p-4 text-slate-400">Loading…</div>}
+      <div className="mt-4 divide-y divide-slate-100 dark:divide-slate-800 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl">
+        {isLoading && <div className="p-4 text-slate-400 dark:text-slate-500">Loading…</div>}
         {!isLoading && contacts.length === 0 && (
-          <div className="p-4 text-slate-400 text-sm">No contacts yet — import a vCard or sync Google Contacts above.</div>
+          <div className="p-4 text-slate-400 dark:text-slate-500 text-sm">No contacts yet — import a vCard or sync Google Contacts above.</div>
         )}
         {contacts.map((c) => {
           const s = c.contact_strategies?.[0];
@@ -215,34 +215,34 @@ export default function Contacts() {
             ? new Date(c.birthday + "T00:00:00").toLocaleDateString(undefined, { month: "short", day: "numeric" })
             : null;
           return (
-            <Link key={c.id} to={`/contacts/${c.id}`} className="flex items-center gap-3 px-4 py-3 hover:bg-slate-50">
+            <Link key={c.id} to={`/contacts/${c.id}`} className="flex items-center gap-3 px-4 py-3 hover:bg-slate-50 dark:hover:bg-slate-800">
               {c.is_vip && <Star className="w-4 h-4 text-amber-500 shrink-0" fill="currentColor" />}
               <div className="min-w-0 flex-1">
                 <div className="font-medium truncate">{c.display_name}</div>
                 <div className="text-xs text-slate-400 truncate">
-                  {email && <span className="text-indigo-500">{email}</span>}
+                  {email && <span className="text-indigo-500 dark:text-indigo-400">{email}</span>}
                   {email && phone && <span className="mx-1">·</span>}
                   {phone && <span className="text-slate-500">{phone}</span>}
                   {(email || phone) && <span className="mx-1">·</span>}
                   {c.kind} · seen {fmtWhen(c.last_seen_at)}
-                  {bday && <span className="ml-1 text-slate-300">· 🎂 {bday}</span>}
+                  {bday && <span className="ml-1 text-slate-300 dark:text-slate-600">· 🎂 {bday}</span>}
                 </div>
               </div>
               {s ? (
                 <span className={`text-xs px-2 py-1 rounded-full ${
-                  s.allowed_zone === "green" ? "bg-emerald-100 text-emerald-700"
-                  : s.allowed_zone === "yellow" ? "bg-amber-100 text-amber-700"
-                  : "bg-red-100 text-red-700"}`}>
+                  s.allowed_zone === "green" ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400"
+                  : s.allowed_zone === "yellow" ? "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400"
+                  : "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400"}`}>
                   {s.re_analysis_recommended ? "🔁 re-analyze" : `strategy · ${s.allowed_zone}`}
                 </span>
               ) : (
-                <span className="text-xs text-slate-400">no strategy</span>
+                <span className="text-xs text-slate-400 dark:text-slate-500">no strategy</span>
               )}
             </Link>
           );
         })}
       </div>
-      <p className="mt-3 text-xs text-slate-400">
+      <p className="mt-3 text-xs text-slate-400 dark:text-slate-500">
         Google Contacts sync requires reconnecting Gmail after granting Contacts access.
         Go to Settings → Gmail → Disconnect → Reconnect to enable it.
       </p>

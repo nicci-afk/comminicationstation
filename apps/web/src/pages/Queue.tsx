@@ -25,7 +25,9 @@ export default function Queue() {
             key={v.key}
             onClick={() => setView(v)}
             className={`px-3 py-1.5 rounded-full text-sm font-medium ${
-              view.key === v.key ? "bg-indigo-600 text-white" : "bg-white border border-slate-200 text-slate-600 hover:bg-slate-100"
+              view.key === v.key
+                ? "bg-indigo-600 text-white"
+                : "bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800"
             }`}
           >
             {v.label}
@@ -34,7 +36,7 @@ export default function Queue() {
         <select
           value={businessId ?? ""}
           onChange={(e) => setBusinessId(e.target.value || null)}
-          className="ml-auto border border-slate-300 rounded-lg px-2 py-1.5 text-sm bg-white"
+          className="ml-auto border border-slate-300 dark:border-slate-600 rounded-lg px-2 py-1.5 text-sm bg-white dark:bg-slate-900 dark:text-slate-100"
         >
           <option value="">All businesses</option>
           {businesses.map((b) => (
@@ -43,8 +45,8 @@ export default function Queue() {
         </select>
       </div>
       <div className="mt-4 space-y-2">
-        {isLoading && <div className="text-slate-400">Loading…</div>}
-        {!isLoading && items.length === 0 && <div className="text-slate-400 py-10 text-center">Nothing here.</div>}
+        {isLoading && <div className="text-slate-400 dark:text-slate-500">Loading…</div>}
+        {!isLoading && items.length === 0 && <div className="text-slate-400 dark:text-slate-500 py-10 text-center">Nothing here.</div>}
         {items.map((item) => (
           <ItemCard key={item.id} item={item} businesses={businesses} />
         ))}

@@ -26,7 +26,7 @@ export default function App() {
     return () => sub.subscription.unsubscribe();
   }, []);
 
-  if (!ready) return <div className="p-10 text-slate-500">Loading…</div>;
+  if (!ready) return <div className="p-10 text-slate-500 dark:text-slate-400">Loading…</div>;
   if (!session) return <Login />;
   return <Shell />;
 }
@@ -42,9 +42,9 @@ function Shell() {
   ];
   return (
     <div className="min-h-screen flex">
-      <aside className="w-52 shrink-0 border-r border-slate-200 bg-white flex flex-col">
-        <div className="px-4 py-4 flex items-center gap-2 border-b border-slate-100">
-          <Landmark className="w-5 h-5 text-indigo-600" />
+      <aside className="w-52 shrink-0 border-r border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 flex flex-col">
+        <div className="px-4 py-4 flex items-center gap-2 border-b border-slate-100 dark:border-slate-800">
+          <Landmark className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
           <span className="font-semibold">Command Center</span>
         </div>
         <nav className="flex-1 p-2 space-y-1">
@@ -54,7 +54,9 @@ function Shell() {
               to={to}
               className={({ isActive }) =>
                 `flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition ${
-                  isActive ? "bg-indigo-50 text-indigo-700" : "text-slate-600 hover:bg-slate-100"
+                  isActive
+                    ? "bg-indigo-50 text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300"
+                    : "text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800"
                 }`
               }
             >
@@ -64,7 +66,7 @@ function Shell() {
         </nav>
         <button
           onClick={() => supabase.auth.signOut()}
-          className="m-2 px-3 py-2 text-left text-sm text-slate-500 hover:bg-slate-100 rounded-lg"
+          className="m-2 px-3 py-2 text-left text-sm text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg"
         >
           Sign out
         </button>

@@ -52,35 +52,35 @@ export default function ContactDetail() {
     onSettled: () => qc.invalidateQueries({ queryKey: ["contact", id] }),
   });
 
-  if (!contact) return <div className="p-10 text-slate-400">Loading…</div>;
+  if (!contact) return <div className="p-10 text-slate-400 dark:text-slate-500">Loading…</div>;
 
   return (
     <div className="max-w-3xl mx-auto p-8">
-      <button onClick={() => nav(-1)} className="flex items-center gap-1 text-sm text-slate-500 hover:text-slate-800">
+      <button onClick={() => nav(-1)} className="flex items-center gap-1 text-sm text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200">
         <ArrowLeft className="w-4 h-4" /> Back
       </button>
       <div className="mt-2 flex items-center gap-3 flex-wrap">
         <h1 className="text-2xl font-bold">{contact.display_name}</h1>
         <button onClick={() => toggleVip.mutate()} title="Toggle VIP">
-          <Star className={`w-5 h-5 ${contact.is_vip ? "text-amber-500" : "text-slate-300"}`}
+          <Star className={`w-5 h-5 ${contact.is_vip ? "text-amber-500" : "text-slate-300 dark:text-slate-600"}`}
             fill={contact.is_vip ? "currentColor" : "none"} />
         </button>
-        <button onClick={() => setShowEdit(true)} title="Edit contact" className="text-slate-400 hover:text-slate-700">
+        <button onClick={() => setShowEdit(true)} title="Edit contact" className="text-slate-400 hover:text-slate-700 dark:hover:text-slate-200">
           <Pencil className="w-4 h-4" />
         </button>
-        <button onClick={() => setShowMerge(true)} title="Merge into another contact" className="text-slate-400 hover:text-slate-700">
+        <button onClick={() => setShowMerge(true)} title="Merge into another contact" className="text-slate-400 hover:text-slate-700 dark:hover:text-slate-200">
           <GitMerge className="w-4 h-4" />
         </button>
-        <span className="text-xs px-2 py-1 bg-slate-100 rounded-full text-slate-500">{contact.kind}</span>
-        <span className="text-xs text-slate-400">seen {fmtWhen(contact.last_seen_at)}</span>
+        <span className="text-xs px-2 py-1 bg-slate-100 dark:bg-slate-800 rounded-full text-slate-500 dark:text-slate-400">{contact.kind}</span>
+        <span className="text-xs text-slate-400 dark:text-slate-500">seen {fmtWhen(contact.last_seen_at)}</span>
       </div>
 
       {(channels.length > 0 || contact.birthday || contact.address || contact.notes) && (
-        <div className="mt-4 bg-white border border-slate-200 rounded-xl p-4 space-y-1.5">
+        <div className="mt-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl p-4 space-y-1.5">
           {channels.filter((ch) => ch.channel_type === "email").map((ch) => (
             <div key={ch.id} className="flex items-center gap-2 text-sm">
               <span className="text-xs font-medium text-slate-400 w-12 shrink-0">email</span>
-              <a href={`mailto:${ch.canonical_value}`} className="text-indigo-600 hover:underline truncate">
+              <a href={`mailto:${ch.canonical_value}`} className="text-indigo-600 dark:text-indigo-400 hover:underline truncate">
                 {ch.canonical_value}
               </a>
             </div>
@@ -88,7 +88,7 @@ export default function ContactDetail() {
           {channels.filter((ch) => ch.channel_type === "phone").map((ch) => (
             <div key={ch.id} className="flex items-center gap-2 text-sm">
               <span className="text-xs font-medium text-slate-400 w-12 shrink-0">phone</span>
-              <a href={`tel:${ch.canonical_value}`} className="text-slate-700 hover:underline">
+              <a href={`tel:${ch.canonical_value}`} className="text-slate-700 dark:text-slate-300 hover:underline">
                 {ch.raw_value || ch.canonical_value}
               </a>
             </div>
@@ -96,19 +96,19 @@ export default function ContactDetail() {
           {contact.birthday && (
             <div className="flex items-center gap-2 text-sm">
               <span className="text-xs font-medium text-slate-400 w-12 shrink-0">birthday</span>
-              <span className="text-slate-700">{new Date(contact.birthday + "T00:00:00").toLocaleDateString(undefined, { month: "long", day: "numeric", year: "numeric" })}</span>
+              <span className="text-slate-700 dark:text-slate-300">{new Date(contact.birthday + "T00:00:00").toLocaleDateString(undefined, { month: "long", day: "numeric", year: "numeric" })}</span>
             </div>
           )}
           {contact.address && (
             <div className="flex items-start gap-2 text-sm">
               <span className="text-xs font-medium text-slate-400 w-12 shrink-0 pt-0.5">address</span>
-              <span className="text-slate-700 whitespace-pre-wrap">{contact.address}</span>
+              <span className="text-slate-700 dark:text-slate-300 whitespace-pre-wrap">{contact.address}</span>
             </div>
           )}
           {contact.notes && (
-            <div className="flex gap-2 text-sm pt-1 border-t border-slate-100">
+            <div className="flex gap-2 text-sm pt-1 border-t border-slate-100 dark:border-slate-800">
               <span className="text-xs font-medium text-slate-400 w-12 shrink-0 pt-0.5">notes</span>
-              <span className="text-slate-600 whitespace-pre-wrap">{contact.notes}</span>
+              <span className="text-slate-600 dark:text-slate-400 whitespace-pre-wrap">{contact.notes}</span>
             </div>
           )}
         </div>
@@ -116,16 +116,16 @@ export default function ContactDetail() {
 
       <div className="mt-4 flex items-center gap-2 flex-wrap">
         {activeRun ? (
-          <div className="flex-1 bg-indigo-50 border border-indigo-200 rounded-xl p-4 text-sm">
-            <div className="font-medium text-indigo-800">Analysis running — stage {activeRun.current_stage} of 3</div>
+          <div className="flex-1 bg-indigo-50 dark:bg-indigo-950/50 border border-indigo-200 dark:border-indigo-800 rounded-xl p-4 text-sm">
+            <div className="font-medium text-indigo-800 dark:text-indigo-200">Analysis running — stage {activeRun.current_stage} of 3</div>
             <div className="mt-2 flex gap-1">
               {[1, 2, 3].map((s) => (
                 <div key={s} className={`h-2 flex-1 rounded-full ${
                   activeRun.current_stage > s || activeRun.status === `stage${s}_done` ? "bg-indigo-500"
-                  : activeRun.current_stage === s ? "bg-indigo-300 animate-pulse" : "bg-slate-200"}`} />
+                  : activeRun.current_stage === s ? "bg-indigo-300 animate-pulse" : "bg-slate-200 dark:bg-slate-700"}`} />
               ))}
             </div>
-            <p className="mt-2 text-xs text-indigo-700">
+            <p className="mt-2 text-xs text-indigo-700 dark:text-indigo-400">
               1 · Perplexity public-web research → 2 · persona strategy → 3 · communication strategy
             </p>
           </div>
@@ -140,7 +140,7 @@ export default function ContactDetail() {
         {strategy && (
           <button
             onClick={() => setShowInteraction(true)}
-            className="flex items-center gap-2 border border-slate-300 rounded-xl px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50"
+            className="flex items-center gap-2 border border-slate-300 dark:border-slate-600 rounded-xl px-4 py-2 text-sm font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800"
           >
             <MessageSquare className="w-4 h-4" /> Log interaction
           </button>
@@ -148,7 +148,7 @@ export default function ContactDetail() {
       </div>
 
       {runs[0] && ["error", "qc_failed"].includes(runs[0].status) && (
-        <div className="mt-3 bg-red-50 border border-red-200 rounded-xl p-3 text-xs text-red-700">
+        <div className="mt-3 bg-red-50 dark:bg-red-950 border border-red-200 dark:border-red-800 rounded-xl p-3 text-xs text-red-700 dark:text-red-300">
           Last run {runs[0].status === "qc_failed" ? "failed quality-control gates" : "errored"}: {runs[0].error}
         </div>
       )}
@@ -273,40 +273,40 @@ function EditContactDialog({
 
   return (
     <div className="fixed inset-0 bg-black/30 grid place-items-center z-50" onClick={onClose}>
-      <div className="bg-white rounded-2xl p-6 w-[520px] space-y-3 max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+      <div className="bg-white dark:bg-slate-900 rounded-2xl p-6 w-[520px] space-y-3 max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
         <h2 className="font-semibold">Edit contact</h2>
 
         <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Display name"
-          className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm" />
+          className="w-full border border-slate-300 dark:border-slate-600 rounded-lg px-3 py-2 text-sm bg-white dark:bg-slate-800 dark:text-slate-100" />
 
         <div className="grid grid-cols-2 gap-2">
           <select value={kind} onChange={(e) => setKind(e.target.value as "human" | "automated" | "organization" | "unknown")}
-            className="border border-slate-300 rounded-lg px-3 py-2 text-sm bg-white">
+            className="border border-slate-300 dark:border-slate-600 rounded-lg px-3 py-2 text-sm bg-white dark:bg-slate-800 dark:text-slate-100">
             <option value="human">human</option>
             <option value="organization">organization</option>
             <option value="automated">automated</option>
             <option value="unknown">unknown</option>
           </select>
           <input type="date" value={birthday} onChange={(e) => setBirthday(e.target.value)}
-            className="border border-slate-300 rounded-lg px-3 py-2 text-sm" />
+            className="border border-slate-300 dark:border-slate-600 rounded-lg px-3 py-2 text-sm bg-white dark:bg-slate-800 dark:text-slate-100" />
         </div>
 
         <input value={address} onChange={(e) => setAddress(e.target.value)} placeholder="Home address (optional)"
-          className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm" />
+          className="w-full border border-slate-300 dark:border-slate-600 rounded-lg px-3 py-2 text-sm bg-white dark:bg-slate-800 dark:text-slate-100" />
 
         <textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={4}
           placeholder="Notes…"
-          className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm resize-y" />
+          className="w-full border border-slate-300 dark:border-slate-600 rounded-lg px-3 py-2 text-sm resize-y bg-white dark:bg-slate-800 dark:text-slate-100" />
 
-        <div className="border border-slate-200 rounded-lg p-3 space-y-2">
-          <p className="text-xs font-medium text-slate-500">Channels</p>
+        <div className="border border-slate-200 dark:border-slate-700 rounded-lg p-3 space-y-2">
+          <p className="text-xs font-medium text-slate-500 dark:text-slate-400">Channels</p>
           {localChannels.length === 0 && (
-            <p className="text-xs text-slate-400">No channels yet — add one below.</p>
+            <p className="text-xs text-slate-400 dark:text-slate-500">No channels yet — add one below.</p>
           )}
           {localChannels.map((ch) => (
             <div key={ch.id} className="flex items-center gap-2 text-sm">
-              <span className="text-xs text-slate-400 w-10 shrink-0">{ch.channel_type}</span>
-              <span className="flex-1 font-mono text-xs truncate">{ch.canonical_value}</span>
+              <span className="text-xs text-slate-400 dark:text-slate-500 w-10 shrink-0">{ch.channel_type}</span>
+              <span className="flex-1 font-mono text-xs truncate dark:text-slate-300">{ch.canonical_value}</span>
               <button type="button" onClick={() => removeChannel(ch.id)}
                 className="text-xs text-red-400 hover:text-red-600 shrink-0">remove</button>
             </div>
@@ -314,16 +314,16 @@ function EditContactDialog({
           <div className="flex gap-2 pt-1">
             <input value={newEmail} onChange={(e) => setNewEmail(e.target.value)}
               placeholder="Add email address"
-              className="flex-1 border border-slate-300 rounded-lg px-2 py-1.5 text-xs" />
+              className="flex-1 border border-slate-300 dark:border-slate-600 rounded-lg px-2 py-1.5 text-xs bg-white dark:bg-slate-800 dark:text-slate-100" />
             <input value={newPhone} onChange={(e) => setNewPhone(e.target.value)}
               placeholder="Add phone"
-              className="flex-1 border border-slate-300 rounded-lg px-2 py-1.5 text-xs" />
+              className="flex-1 border border-slate-300 dark:border-slate-600 rounded-lg px-2 py-1.5 text-xs bg-white dark:bg-slate-800 dark:text-slate-100" />
           </div>
         </div>
 
-        {error && <p className="text-sm text-red-600">{error}</p>}
+        {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
         <div className="flex justify-end gap-2">
-          <button type="button" onClick={onClose} className="px-4 py-2 text-sm text-slate-500">Cancel</button>
+          <button type="button" onClick={onClose} className="px-4 py-2 text-sm text-slate-500 dark:text-slate-400">Cancel</button>
           <button type="button" onClick={() => save.mutate()} disabled={save.isPending}
             className="bg-indigo-600 text-white rounded-lg px-4 py-2 text-sm disabled:opacity-50">
             {save.isPending ? "Saving…" : "Save changes"}
@@ -383,10 +383,10 @@ function MergeContactDialog({
 
   return (
     <div className="fixed inset-0 bg-black/30 grid place-items-center z-50" onClick={onClose}>
-      <div className="bg-white rounded-2xl p-6 w-[480px] space-y-4" onClick={(e) => e.stopPropagation()}>
+      <div className="bg-white dark:bg-slate-900 rounded-2xl p-6 w-[480px] space-y-4" onClick={(e) => e.stopPropagation()}>
         <div>
           <h2 className="font-semibold">Merge contact</h2>
-          <p className="text-xs text-slate-500 mt-1">
+          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
             All channels, messages, and queue items from{" "}
             <strong>{sourceContactName}</strong> will move to the contact you choose.
             The original record is tombstoned (hidden, not deleted). This cannot be undone.
@@ -399,19 +399,19 @@ function MergeContactDialog({
             value={search}
             onChange={(e) => { setSearch(e.target.value); setSelected(null); setStatus(""); setError(""); }}
             placeholder="Search for the contact to merge into…"
-            className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm"
+            className="w-full border border-slate-300 dark:border-slate-600 rounded-lg px-3 py-2 text-sm bg-white dark:bg-slate-800 dark:text-slate-100"
             autoFocus
           />
           {results.length > 0 && !selected && (
-            <ul className="absolute z-10 left-0 right-0 mt-1 bg-white border border-slate-200 rounded-lg shadow text-sm overflow-hidden">
+            <ul className="absolute z-10 left-0 right-0 mt-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg shadow text-sm overflow-hidden">
               {results.map((c) => (
                 <li key={c.id}>
                   <button
                     onClick={() => { setSelected(c); setSearch(c.display_name); setResults([]); setStatus("confirming"); }}
-                    className="w-full text-left px-3 py-2 hover:bg-slate-50 flex items-center gap-2"
+                    className="w-full text-left px-3 py-2 hover:bg-slate-50 dark:hover:bg-slate-800 flex items-center gap-2"
                   >
                     <span className="flex-1">{c.display_name}</span>
-                    {c.kind === "unknown" && <span className="text-xs text-slate-400">unknown</span>}
+                    {c.kind === "unknown" && <span className="text-xs text-slate-400 dark:text-slate-500">unknown</span>}
                   </button>
                 </li>
               ))}
@@ -420,7 +420,7 @@ function MergeContactDialog({
         </div>
 
         {selected && status === "confirming" && (
-          <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-sm text-amber-800 space-y-1">
+          <div className="bg-amber-50 dark:bg-amber-950 border border-amber-200 dark:border-amber-800 rounded-xl p-3 text-sm text-amber-800 dark:text-amber-200 space-y-1">
             <p>
               Merge <strong>{sourceContactName}</strong> → <strong>{selected.display_name}</strong>?
             </p>
@@ -432,10 +432,10 @@ function MergeContactDialog({
           </div>
         )}
 
-        {error && <p className="text-sm text-red-600">{error}</p>}
+        {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
 
         <div className="flex justify-end gap-2">
-          <button onClick={onClose} className="px-4 py-2 text-sm text-slate-500">Cancel</button>
+          <button onClick={onClose} className="px-4 py-2 text-sm text-slate-500 dark:text-slate-400">Cancel</button>
           {selected && status === "confirming" && (
             <button
               onClick={() => { setStatus("merging"); merge.mutate(); }}
@@ -458,9 +458,9 @@ function TagInput({ value, onChange, placeholder }: {
 }) {
   const [input, setInput] = useState("");
   return (
-    <div className="border border-slate-300 rounded-lg px-2 py-1.5 flex flex-wrap gap-1 min-h-[38px]">
+    <div className="border border-slate-300 dark:border-slate-700 rounded-lg px-2 py-1.5 flex flex-wrap gap-1 min-h-[38px] bg-white dark:bg-slate-800">
       {value.map((tag, i) => (
-        <span key={i} className="bg-slate-100 text-slate-700 text-xs px-2 py-0.5 rounded-full flex items-center gap-1">
+        <span key={i} className="bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200 text-xs px-2 py-0.5 rounded-full flex items-center gap-1">
           {tag}
           <button type="button" onClick={() => onChange(value.filter((_, j) => j !== i))}
             className="hover:text-red-500 leading-none">×</button>
@@ -477,7 +477,7 @@ function TagInput({ value, onChange, placeholder }: {
           }
         }}
         placeholder={value.length === 0 ? placeholder : "Enter to add…"}
-        className="outline-none text-sm flex-1 min-w-[120px] bg-transparent"
+        className="outline-none text-sm flex-1 min-w-[120px] bg-transparent dark:text-slate-100 dark:placeholder-slate-500"
       />
     </div>
   );
@@ -522,38 +522,38 @@ function InteractionUpdateDialog({
 
   return (
     <div className="fixed inset-0 bg-black/30 grid place-items-center z-50" onClick={onClose}>
-      <div className="bg-white rounded-2xl p-6 w-[560px] space-y-3 max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+      <div className="bg-white dark:bg-slate-900 rounded-2xl p-6 w-[560px] space-y-3 max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
         <h2 className="font-semibold">Log interaction with {contactName}</h2>
-        <p className="text-xs text-slate-500">
+        <p className="text-xs text-slate-500 dark:text-slate-400">
           Records what happened so the strategy evolves over time. Press Enter in tag fields to add each item.
           Drift signals or repeated confidence decreases will flag the strategy for re-analysis.
         </p>
 
         <div>
-          <label className="text-xs font-medium text-slate-500">What you sent</label>
+          <label className="text-xs font-medium text-slate-500 dark:text-slate-400">What you sent</label>
           <textarea value={whatSent} onChange={(e) => setWhatSent(e.target.value)} rows={3}
             placeholder="Key points of what you said or sent…"
-            className="mt-1 w-full border border-slate-300 rounded-lg px-3 py-2 text-sm resize-y" />
+            className="mt-1 w-full border border-slate-300 dark:border-slate-600 rounded-lg px-3 py-2 text-sm resize-y bg-white dark:bg-slate-800 dark:text-slate-100" />
         </div>
 
         <div>
-          <label className="text-xs font-medium text-slate-500">Response observed</label>
+          <label className="text-xs font-medium text-slate-500 dark:text-slate-400">Response observed</label>
           <textarea value={responseObserved} onChange={(e) => setResponseObserved(e.target.value)} rows={3}
             placeholder="What they said or did in response — or 'no response yet'"
-            className="mt-1 w-full border border-slate-300 rounded-lg px-3 py-2 text-sm resize-y" />
+            className="mt-1 w-full border border-slate-300 dark:border-slate-600 rounded-lg px-3 py-2 text-sm resize-y bg-white dark:bg-slate-800 dark:text-slate-100" />
         </div>
 
         <div className="grid grid-cols-2 gap-2">
           <div>
-            <label className="text-xs font-medium text-slate-500">Response classification</label>
+            <label className="text-xs font-medium text-slate-500 dark:text-slate-400">Response classification</label>
             <input value={responseClassification} onChange={(e) => setResponseClassification(e.target.value)}
               placeholder="e.g. positive, objection, silence"
-              className="mt-1 w-full border border-slate-300 rounded-lg px-3 py-2 text-sm" />
+              className="mt-1 w-full border border-slate-300 dark:border-slate-600 rounded-lg px-3 py-2 text-sm bg-white dark:bg-slate-800 dark:text-slate-100" />
           </div>
           <div>
-            <label className="text-xs font-medium text-slate-500">Confidence change</label>
+            <label className="text-xs font-medium text-slate-500 dark:text-slate-400">Confidence change</label>
             <select value={confidenceChange} onChange={(e) => setConfidenceChange(e.target.value as typeof confidenceChange)}
-              className="mt-1 w-full border border-slate-300 rounded-lg px-3 py-2 text-sm bg-white">
+              className="mt-1 w-full border border-slate-300 dark:border-slate-600 rounded-lg px-3 py-2 text-sm bg-white dark:bg-slate-800 dark:text-slate-100">
               <option value="none">No change</option>
               <option value="increase">Increase — strategy is working</option>
               <option value="decrease">Decrease — something is off</option>
@@ -562,7 +562,7 @@ function InteractionUpdateDialog({
         </div>
 
         <div>
-          <label className="text-xs font-medium text-slate-500">Friction signals (Enter to add)</label>
+          <label className="text-xs font-medium text-slate-500 dark:text-slate-400">Friction signals (Enter to add)</label>
           <div className="mt-1">
             <TagInput value={frictionSignals} onChange={setFrictionSignals}
               placeholder="e.g. pushed back on price…" />
@@ -570,7 +570,7 @@ function InteractionUpdateDialog({
         </div>
 
         <div>
-          <label className="text-xs font-medium text-slate-500">Drift signals — surprises (Enter to add)</label>
+          <label className="text-xs font-medium text-slate-500 dark:text-slate-400">Drift signals — surprises (Enter to add)</label>
           <div className="mt-1">
             <TagInput value={driftSignals} onChange={setDriftSignals}
               placeholder="e.g. mentioned new budget constraint…" />
@@ -578,16 +578,16 @@ function InteractionUpdateDialog({
         </div>
 
         <div>
-          <label className="text-xs font-medium text-slate-500">Recommended strategy updates (Enter to add)</label>
+          <label className="text-xs font-medium text-slate-500 dark:text-slate-400">Recommended strategy updates (Enter to add)</label>
           <div className="mt-1">
             <TagInput value={recommendedUpdates} onChange={setRecommendedUpdates}
               placeholder="e.g. lead with flexibility next time…" />
           </div>
         </div>
 
-        {error && <p className="text-sm text-red-600">{error}</p>}
+        {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
         <div className="flex justify-end gap-2">
-          <button type="button" onClick={onClose} className="px-4 py-2 text-sm text-slate-500">Cancel</button>
+          <button type="button" onClick={onClose} className="px-4 py-2 text-sm text-slate-500 dark:text-slate-400">Cancel</button>
           <button
             type="button"
             onClick={() => submit.mutate()}
@@ -642,41 +642,41 @@ function AnalyzeDialog({
 
   return (
     <div className="fixed inset-0 bg-black/30 grid place-items-center z-50" onClick={onClose}>
-      <div className="bg-white rounded-2xl p-6 w-[480px] space-y-3" onClick={(e) => e.stopPropagation()}>
+      <div className="bg-white dark:bg-slate-900 rounded-2xl p-6 w-[480px] space-y-3" onClick={(e) => e.stopPropagation()}>
         <h2 className="font-semibold">Analyze {contactName}</h2>
-        <p className="text-xs text-slate-500">
+        <p className="text-xs text-slate-500 dark:text-slate-400">
           Runs the full 3-stage pipeline (Perplexity public-web research → ChatGPT persona strategy →
           Claude communication strategy) once, then stores and reuses the result. Roughly $0.05–0.30.
           The more identifiers you give it, the stronger the identity match.
         </p>
         <input value={fullName} onChange={(e) => setFullName(e.target.value)} placeholder="Full name"
-          className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm" />
+          className="w-full border border-slate-300 dark:border-slate-600 rounded-lg px-3 py-2 text-sm bg-white dark:bg-slate-800 dark:text-slate-100" />
         <div className="grid grid-cols-2 gap-2">
           <input value={employer} onChange={(e) => setEmployer(e.target.value)} placeholder="Company (optional)"
-            className="border border-slate-300 rounded-lg px-3 py-2 text-sm" />
+            className="border border-slate-300 dark:border-slate-600 rounded-lg px-3 py-2 text-sm bg-white dark:bg-slate-800 dark:text-slate-100" />
           <input value={location} onChange={(e) => setLocation(e.target.value)} placeholder="Location (optional)"
-            className="border border-slate-300 rounded-lg px-3 py-2 text-sm" />
+            className="border border-slate-300 dark:border-slate-600 rounded-lg px-3 py-2 text-sm bg-white dark:bg-slate-800 dark:text-slate-100" />
         </div>
         <input value={urls} onChange={(e) => setUrls(e.target.value)} placeholder="Profile URLs, space-separated (optional)"
-          className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm" />
+          className="w-full border border-slate-300 dark:border-slate-600 rounded-lg px-3 py-2 text-sm bg-white dark:bg-slate-800 dark:text-slate-100" />
         <input value={useCase} onChange={(e) => setUseCase(e.target.value)} placeholder="What's this relationship about? (optional)"
-          className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm" />
+          className="w-full border border-slate-300 dark:border-slate-600 rounded-lg px-3 py-2 text-sm bg-white dark:bg-slate-800 dark:text-slate-100" />
         <div className="grid grid-cols-2 gap-2">
           <select value={businessId} onChange={(e) => setBusinessId(e.target.value)}
-            className="border border-slate-300 rounded-lg px-2 py-2 text-sm bg-white">
+            className="border border-slate-300 dark:border-slate-600 rounded-lg px-2 py-2 text-sm bg-white dark:bg-slate-800 dark:text-slate-100">
             <option value="">No specific business</option>
             {businesses.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
           </select>
           <select value={stakes} onChange={(e) => setStakes(e.target.value)}
-            className="border border-slate-300 rounded-lg px-2 py-2 text-sm bg-white">
+            className="border border-slate-300 dark:border-slate-600 rounded-lg px-2 py-2 text-sm bg-white dark:bg-slate-800 dark:text-slate-100">
             <option value="low">Low stakes</option>
             <option value="medium">Medium stakes</option>
             <option value="high">High stakes</option>
           </select>
         </div>
-        {error && <p className="text-sm text-red-600">{error}</p>}
+        {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
         <div className="flex justify-end gap-2">
-          <button onClick={onClose} className="px-4 py-2 text-sm text-slate-500">Cancel</button>
+          <button onClick={onClose} className="px-4 py-2 text-sm text-slate-500 dark:text-slate-400">Cancel</button>
           <button onClick={() => start.mutate()} disabled={start.isPending}
             className="bg-indigo-600 text-white rounded-lg px-4 py-2 text-sm disabled:opacity-50">
             {start.isPending ? "Starting…" : "Run analysis"}
@@ -691,9 +691,9 @@ function AnalyzeDialog({
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <div className="bg-white border border-slate-200 rounded-xl p-4">
+    <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl p-4">
       <h3 className="text-sm font-semibold">{title}</h3>
-      <div className="mt-2 text-sm text-slate-700 space-y-1">{children}</div>
+      <div className="mt-2 text-sm text-slate-700 dark:text-slate-300 space-y-1">{children}</div>
     </div>
   );
 }
@@ -716,13 +716,13 @@ function StrategyFull({
       <div className="flex items-center gap-2">
         <h2 className="text-lg font-semibold">Stored strategy</h2>
         <span className={`text-xs px-2 py-0.5 rounded-full uppercase font-bold ${
-          strategy.allowed_zone === "green" ? "bg-emerald-100 text-emerald-700"
-          : strategy.allowed_zone === "yellow" ? "bg-amber-100 text-amber-700"
-          : "bg-red-100 text-red-700"}`}>{strategy.allowed_zone}</span>
-        <span className="text-xs text-slate-400">updated {fmtWhen(strategy.updated_at)}</span>
+          strategy.allowed_zone === "green" ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400"
+          : strategy.allowed_zone === "yellow" ? "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400"
+          : "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400"}`}>{strategy.allowed_zone}</span>
+        <span className="text-xs text-slate-400 dark:text-slate-500">updated {fmtWhen(strategy.updated_at)}</span>
       </div>
       {strategy.re_analysis_recommended && (
-        <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-sm text-amber-800">
+        <div className="bg-amber-50 dark:bg-amber-950 border border-amber-200 dark:border-amber-800 rounded-xl p-3 text-sm text-amber-800 dark:text-amber-200">
           🔁 Re-analysis recommended — {strategy.re_analysis_reason}. Use the button above when ready
           (it never runs by itself).
         </div>
@@ -730,7 +730,7 @@ function StrategyFull({
       <Section title="Objective & approach">
         <p><strong>Objective:</strong> {String(comm.message_objective ?? "")}</p>
         <p><strong>Approach:</strong> {String(comm.recommended_approach ?? "")}</p>
-        <p className="text-xs text-slate-500"><strong>Safe next action:</strong> {String(comm.minimum_safe_next_action ?? "")}</p>
+        <p className="text-xs text-slate-500 dark:text-slate-400"><strong>Safe next action:</strong> {String(comm.minimum_safe_next_action ?? "")}</p>
       </Section>
       {sequencing.length > 0 && (
         <Section title="Sequencing plan">
@@ -742,9 +742,9 @@ function StrategyFull({
       {blueprints.length > 0 && (
         <Section title="Message blueprints">
           {blueprints.map((b, i) => (
-            <div key={i} className="border border-slate-100 rounded-lg p-2">
-              <div className="text-xs font-semibold">{String(b.blueprint_name)} <span className="font-normal text-slate-400">— use when: {String(b.use_when)}</span></div>
-              <pre className="mt-1 text-xs whitespace-pre-wrap font-sans text-slate-600">{String(b.template)}</pre>
+            <div key={i} className="border border-slate-100 dark:border-slate-800 rounded-lg p-2">
+              <div className="text-xs font-semibold">{String(b.blueprint_name)} <span className="font-normal text-slate-400 dark:text-slate-500">— use when: {String(b.use_when)}</span></div>
+              <pre className="mt-1 text-xs whitespace-pre-wrap font-sans text-slate-600 dark:text-slate-400">{String(b.template)}</pre>
             </div>
           ))}
         </Section>

@@ -138,7 +138,7 @@ export default function ItemDetail() {
     }
   }, [item, recatInit]);
 
-  if (!item) return <div className="p-10 text-slate-400">Loading…</div>;
+  if (!item) return <div className="p-10 text-slate-400 dark:text-slate-500">Loading…</div>;
   const isPhone = item.channel !== "email";
 
   function act(patch: Partial<QueueItem>) {
@@ -172,7 +172,7 @@ export default function ItemDetail() {
       for (const bizId of restBizs) {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const { error: insErr } = await supabase.from("queue_items").insert({
-          user_id: user.id,
+          user_id: (await supabase.auth.getUser()).data.user!.id,
           thread_id: item!.thread_id,
           contact_id: item!.contact_id,
           business_id: bizId,
@@ -211,18 +211,18 @@ export default function ItemDetail() {
   return (
     <div className="max-w-5xl mx-auto p-6 grid grid-cols-[1fr_340px] gap-6">
       <div className="min-w-0">
-        <button onClick={() => nav(-1)} className="flex items-center gap-1 text-sm text-slate-500 hover:text-slate-800">
+        <button onClick={() => nav(-1)} className="flex items-center gap-1 text-sm text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200">
           <ArrowLeft className="w-4 h-4" /> Back
         </button>
         <div className="mt-2 flex items-center gap-2 flex-wrap">
           <h1 className="text-xl font-bold truncate">{item.title || "(no subject)"}</h1>
           <BusinessChip businesses={businesses} id={item.business_id} />
-          <span className="text-xs px-2 py-0.5 rounded-full bg-slate-100 text-slate-600">{item.state.replace("_", " ")}</span>
+          <span className="text-xs px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">{item.state.replace("_", " ")}</span>
         </div>
-        <div className="text-sm text-slate-500">
+        <div className="text-sm text-slate-500 dark:text-slate-400">
           {item.sender_name || item.sender_identifier}
           {contact && (
-            <> · <Link className="text-indigo-600 hover:underline" to={`/contacts/${contact.id}`}>contact</Link></>
+            <> · <Link className="text-indigo-600 dark:text-indigo-400 hover:underline" to={`/contacts/${contact.id}`}>contact</Link></>
           )}
         </div>
 
@@ -231,12 +231,12 @@ export default function ItemDetail() {
         </div>
 
         {isPhone ? (
-          <div className="mt-4 bg-white border border-slate-200 rounded-xl p-3">
+          <div className="mt-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl p-3">
             <textarea
               value={smsText}
               onChange={(e) => setSmsText(e.target.value)}
               placeholder={`Reply by ${item.channel === "whatsapp" ? "WhatsApp" : "text"}…`}
-              className="w-full text-sm border-0 focus:outline-none resize-none"
+              className="w-full text-sm border-0 focus:outline-none resize-none bg-transparent dark:text-slate-100 dark:placeholder-slate-500"
               rows={3}
             />
             <div className="flex justify-end">
@@ -250,17 +250,17 @@ export default function ItemDetail() {
             </div>
           </div>
         ) : (
-          <p className="mt-4 text-xs text-slate-400">
-            Reply from Gmail as usual — the moment your reply lands in Sent, this flips to “responded” automatically (with the evidence shown on the right).
+          <p className="mt-4 text-xs text-slate-400 dark:text-slate-500">
+            Reply from Gmail as usual — the moment your reply lands in Sent, this flips to "responded" automatically (with the evidence shown on the right).
           </p>
         )}
 
-        {error && <p className="mt-3 text-sm text-red-600">{error}</p>}
+        {error && <p className="mt-3 text-sm text-red-600 dark:text-red-400">{error}</p>}
 
         {draft && (
-          <div className="mt-4 bg-indigo-50 border border-indigo-200 rounded-xl p-4">
+          <div className="mt-4 bg-indigo-50 dark:bg-indigo-950 border border-indigo-200 dark:border-indigo-800 rounded-xl p-4">
             <div className="flex items-center justify-between">
-              <span className="text-sm font-semibold text-indigo-800">Strategy draft</span>
+              <span className="text-sm font-semibold text-indigo-800 dark:text-indigo-200">Strategy draft</span>
               <button
                 onClick={() => { navigator.clipboard.writeText(draft.text); }}
                 className="text-xs bg-indigo-600 text-white rounded px-2 py-1"
@@ -269,29 +269,29 @@ export default function ItemDetail() {
               </button>
             </div>
             <pre className="mt-2 text-sm whitespace-pre-wrap font-sans">{draft.text}</pre>
-            {draft.notes && <p className="mt-2 text-xs text-indigo-700">{draft.notes}</p>}
+            {draft.notes && <p className="mt-2 text-xs text-indigo-700 dark:text-indigo-400">{draft.notes}</p>}
           </div>
         )}
       </div>
 
       <aside className="space-y-4">
-        <div className="bg-white border border-slate-200 rounded-xl p-4">
+        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl p-4">
           <h3 className="text-sm font-semibold">Actions</h3>
           <div className="mt-2 grid grid-cols-2 gap-2">
             <button onClick={() => act({ state: "responded" })}
-              className="flex items-center justify-center gap-1 bg-emerald-50 text-emerald-700 rounded-lg py-2 text-sm hover:bg-emerald-100">
+              className="flex items-center justify-center gap-1 bg-emerald-50 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-400 rounded-lg py-2 text-sm hover:bg-emerald-100 dark:hover:bg-emerald-900">
               <Check className="w-4 h-4" /> Responded
             </button>
             <button onClick={() => act({ state: "dismissed" })}
-              className="flex items-center justify-center gap-1 bg-slate-100 text-slate-600 rounded-lg py-2 text-sm hover:bg-slate-200">
+              className="flex items-center justify-center gap-1 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 rounded-lg py-2 text-sm hover:bg-slate-200 dark:hover:bg-slate-700">
               <X className="w-4 h-4" /> Dismiss
             </button>
             <button onClick={() => act({ state: "snoozed", snoozed_until: new Date(Date.now() + 4 * 3600_000).toISOString() })}
-              className="flex items-center justify-center gap-1 bg-sky-50 text-sky-700 rounded-lg py-2 text-sm hover:bg-sky-100">
+              className="flex items-center justify-center gap-1 bg-sky-50 dark:bg-sky-950 text-sky-700 dark:text-sky-400 rounded-lg py-2 text-sm hover:bg-sky-100 dark:hover:bg-sky-900">
               <Clock className="w-4 h-4" /> Snooze 4h
             </button>
             <button onClick={() => act({ state: "snoozed", snoozed_until: new Date(Date.now() + 24 * 3600_000).toISOString() })}
-              className="flex items-center justify-center gap-1 bg-sky-50 text-sky-700 rounded-lg py-2 text-sm hover:bg-sky-100">
+              className="flex items-center justify-center gap-1 bg-sky-50 dark:bg-sky-950 text-sky-700 dark:text-sky-400 rounded-lg py-2 text-sm hover:bg-sky-100 dark:hover:bg-sky-900">
               <Clock className="w-4 h-4" /> Tomorrow
             </button>
           </div>
@@ -306,7 +306,7 @@ export default function ItemDetail() {
                 </button>
                 <button
                   onClick={() => setBlockStatus("")}
-                  className="flex-1 bg-slate-100 text-slate-600 rounded-lg py-2 text-sm hover:bg-slate-200"
+                  className="flex-1 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 rounded-lg py-2 text-sm hover:bg-slate-200 dark:hover:bg-slate-700"
                 >
                   Cancel
                 </button>
@@ -315,14 +315,14 @@ export default function ItemDetail() {
               <button
                 onClick={() => setBlockStatus("confirming")}
                 disabled={blockStatus === "blocking"}
-                className="w-full flex items-center justify-center gap-1 bg-red-50 text-red-700 rounded-lg py-2 text-sm hover:bg-red-100 disabled:opacity-50"
+                className="w-full flex items-center justify-center gap-1 bg-red-50 dark:bg-red-950 text-red-700 dark:text-red-400 rounded-lg py-2 text-sm hover:bg-red-100 dark:hover:bg-red-900 disabled:opacity-50"
               >
                 <Ban className="w-4 h-4" />
                 {blockStatus === "blocking" ? "Blocking…" : "Block sender"}
               </button>
             )}
             {blockStatus === "confirming" && (
-              <p className="mt-1 text-xs text-slate-500 text-center">
+              <p className="mt-1 text-xs text-slate-500 dark:text-slate-400 text-center">
                 Suppresses this item + all open items from <strong>{item.sender_identifier}</strong>, and blocks future messages.
               </p>
             )}
@@ -341,16 +341,16 @@ export default function ItemDetail() {
             <button
               onClick={() => logOutcome.mutate()}
               disabled={logOutcome.isPending}
-              className="mt-2 w-full bg-slate-100 text-slate-700 rounded-lg py-2 text-sm hover:bg-slate-200 disabled:opacity-50"
+              className="mt-2 w-full bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 rounded-lg py-2 text-sm hover:bg-slate-200 dark:hover:bg-slate-700 disabled:opacity-50"
             >
               {logOutcome.isPending ? "Logging…" : logOutcome.isSuccess ? "Outcome logged ✓" : "Log outcome → update strategy"}
             </button>
           )}
         </div>
 
-        <div className="bg-white border border-slate-200 rounded-xl p-4">
+        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl p-4">
           <h3 className="text-sm font-semibold">Recategorize</h3>
-          <p className="text-xs text-slate-500 mt-1">
+          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
             Saving also trains a rule so future messages from this sender are pre-routed.
           </p>
           <div className="mt-2 space-y-2">
@@ -364,13 +364,13 @@ export default function ItemDetail() {
                   setRecatBusinesses(item.business_id ? [item.business_id] : []);
                 }
               }}
-              className="w-full border border-slate-200 rounded-lg px-2 py-1.5 text-sm bg-white"
+              className="w-full border border-slate-200 dark:border-slate-700 rounded-lg px-2 py-1.5 text-sm bg-white dark:bg-slate-800 dark:text-slate-100"
             >
               {CATEGORIES.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
             </select>
             {isExpenseCat ? (
               <>
-                <div className="border border-slate-200 rounded-lg p-2 space-y-1.5 max-h-44 overflow-y-auto">
+                <div className="border border-slate-200 dark:border-slate-700 rounded-lg p-2 space-y-1.5 max-h-44 overflow-y-auto">
                   {businesses.map((b) => (
                     <label key={b.id} className="flex items-center gap-2 text-sm cursor-pointer select-none">
                       <input
@@ -389,7 +389,7 @@ export default function ItemDetail() {
                   ))}
                 </div>
                 {recatBusinesses.length > 1 && (
-                  <p className="text-xs text-indigo-700">
+                  <p className="text-xs text-indigo-700 dark:text-indigo-400">
                     Will create {recatBusinesses.length} items — one per business, each marked "1/{recatBusinesses.length} split."
                   </p>
                 )}
@@ -398,7 +398,7 @@ export default function ItemDetail() {
               <select
                 value={recatBusiness ?? ""}
                 onChange={(e) => { setRecatBusiness(e.target.value || null); setRecatStatus(""); }}
-                className="w-full border border-slate-200 rounded-lg px-2 py-1.5 text-sm bg-white"
+                className="w-full border border-slate-200 dark:border-slate-700 rounded-lg px-2 py-1.5 text-sm bg-white dark:bg-slate-800 dark:text-slate-100"
               >
                 <option value="">No business</option>
                 {businesses.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
@@ -420,13 +420,13 @@ export default function ItemDetail() {
           </div>
         </div>
 
-        <div className="bg-white border border-slate-200 rounded-xl p-4">
+        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl p-4">
           <h3 className="text-sm font-semibold flex items-center gap-1">
-            <UserPlus className="w-4 h-4 text-slate-400" />
+            <UserPlus className="w-4 h-4 text-slate-400 dark:text-slate-500" />
             {contact?.kind === "unknown" ? "Who is this from?" : "Reassign sender"}
           </h3>
           {contact?.kind === "unknown" && (
-            <p className="text-xs text-amber-600 mt-1">
+            <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">
               <strong>{item.sender_identifier}</strong> hasn't been linked to a contact yet.
             </p>
           )}
@@ -436,19 +436,19 @@ export default function ItemDetail() {
               value={linkSearch}
               onChange={(e) => { setLinkSearch(e.target.value); setLinkSelected(null); setLinkStatus(""); }}
               placeholder="Search contacts by name…"
-              className="w-full border border-slate-200 rounded-lg px-2 py-1.5 text-sm"
+              className="w-full border border-slate-200 dark:border-slate-700 rounded-lg px-2 py-1.5 text-sm bg-white dark:bg-slate-800 dark:text-slate-100"
             />
             {linkResults.length > 0 && !linkSelected && (
-              <ul className="absolute z-10 left-0 right-0 mt-1 bg-white border border-slate-200 rounded-lg shadow text-sm overflow-hidden">
+              <ul className="absolute z-10 left-0 right-0 mt-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg shadow text-sm overflow-hidden">
                 {linkResults.map((c) => (
                   <li key={c.id}>
                     <button
                       onClick={() => { setLinkSelected(c); setLinkSearch(c.display_name); setLinkResults([]); }}
-                      className="w-full text-left px-3 py-2 hover:bg-slate-50"
+                      className="w-full text-left px-3 py-2 hover:bg-slate-50 dark:hover:bg-slate-800"
                     >
                       {c.display_name}
                       {c.kind === "unknown" && (
-                        <span className="ml-1 text-xs text-slate-400">(unknown)</span>
+                        <span className="ml-1 text-xs text-slate-400 dark:text-slate-500">(unknown)</span>
                       )}
                     </button>
                   </li>
@@ -458,7 +458,7 @@ export default function ItemDetail() {
           </div>
           {linkSelected && linkStatus !== "saved" && (
             <div className="mt-2">
-              <p className="text-xs text-slate-600">
+              <p className="text-xs text-slate-600 dark:text-slate-400">
                 Links <strong>{item.sender_identifier}</strong> to{" "}
                 <strong>{linkSelected.display_name}</strong> — updates all past and future messages.
               </p>
@@ -472,26 +472,26 @@ export default function ItemDetail() {
             </div>
           )}
           {linkStatus === "saved" && (
-            <p className="mt-2 text-xs text-emerald-700">Linked ✓ — all messages updated.</p>
+            <p className="mt-2 text-xs text-emerald-700 dark:text-emerald-400">Linked ✓ — all messages updated.</p>
           )}
         </div>
 
         <StrategyPanel item={item} strategy={strategy} comm={comm ?? null} />
 
-        <div className="bg-white border border-slate-200 rounded-xl p-4">
+        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl p-4">
           <h3 className="text-sm font-semibold">History & evidence</h3>
-          <ul className="mt-2 space-y-2 text-xs text-slate-600">
+          <ul className="mt-2 space-y-2 text-xs text-slate-600 dark:text-slate-400">
             {item.priority_reasons?.length > 0 && (
-              <li className="text-slate-500">Priority: {item.priority_reasons.join(" · ")}</li>
+              <li className="text-slate-500 dark:text-slate-500">Priority: {item.priority_reasons.join(" · ")}</li>
             )}
             {events.map((e) => (
-              <li key={e.id} className="border-l-2 border-slate-200 pl-2">
-                <span className={e.actor === "system" ? "text-indigo-600" : "text-emerald-700"}>
+              <li key={e.id} className="border-l-2 border-slate-200 dark:border-slate-700 pl-2">
+                <span className={e.actor === "system" ? "text-indigo-600 dark:text-indigo-400" : "text-emerald-700 dark:text-emerald-500"}>
                   {e.actor}
                 </span>{" "}
                 {e.from_state} → <strong>{e.to_state}</strong>
                 {e.reason && <> · {e.reason.replaceAll("_", " ")}</>}
-                <span className="text-slate-400"> · {fmtWhen(e.created_at)}</span>
+                <span className="text-slate-400 dark:text-slate-500"> · {fmtWhen(e.created_at)}</span>
               </li>
             ))}
           </ul>
@@ -518,15 +518,17 @@ function MessageBubble({ m }: { m: Message }) {
   }
 
   return (
-    <div className={`rounded-xl border p-3 ${inbound ? "bg-white border-slate-200" : "bg-indigo-50 border-indigo-100 ml-8"}`}>
-      <div className="flex items-center gap-2 text-xs text-slate-500">
-        <span className="font-medium text-slate-700">{inbound ? (m.from_name || m.from_identifier) : "You"}</span>
+    <div className={`rounded-xl border p-3 ${inbound
+      ? "bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700"
+      : "bg-indigo-50 dark:bg-indigo-950/50 border-indigo-100 dark:border-indigo-900 ml-8"}`}>
+      <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
+        <span className="font-medium text-slate-700 dark:text-slate-300">{inbound ? (m.from_name || m.from_identifier) : "You"}</span>
         <span>{new Date(m.sent_at).toLocaleString()}</span>
       </div>
       <div className="mt-1 text-sm whitespace-pre-wrap">
         {body ?? m.snippet}
         {!body && m.channel === "email" && (
-          <button onClick={loadBody} disabled={loading} className="block mt-1 text-xs text-indigo-600 hover:underline">
+          <button onClick={loadBody} disabled={loading} className="block mt-1 text-xs text-indigo-600 dark:text-indigo-400 hover:underline">
             {loading ? "Loading…" : "Show full message"}
           </button>
         )}

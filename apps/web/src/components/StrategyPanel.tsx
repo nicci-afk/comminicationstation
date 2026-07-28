@@ -4,9 +4,9 @@ import { Link } from "react-router-dom";
 import type { ContactStrategy, QueueItem } from "../lib/types";
 
 const ZONE_STYLE = {
-  green: "bg-emerald-50 border-emerald-200 text-emerald-900",
-  yellow: "bg-amber-50 border-amber-200 text-amber-900",
-  red: "bg-red-50 border-red-200 text-red-900",
+  green: "bg-emerald-50 dark:bg-emerald-950 border-emerald-200 dark:border-emerald-800 text-emerald-900 dark:text-emerald-100",
+  yellow: "bg-amber-50 dark:bg-amber-950 border-amber-200 dark:border-amber-800 text-amber-900 dark:text-amber-100",
+  red: "bg-red-50 dark:bg-red-950 border-red-200 dark:border-red-800 text-red-900 dark:text-red-100",
 } as const;
 
 export default function StrategyPanel({
@@ -21,14 +21,14 @@ export default function StrategyPanel({
   if (!item.contact_id) return null;
   if (!strategy) {
     return (
-      <div className="bg-white border border-slate-200 rounded-xl p-4">
+      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl p-4">
         <h3 className="text-sm font-semibold">Communication strategy</h3>
-        <p className="mt-1 text-xs text-slate-500">
+        <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
           No stored strategy for this contact yet. The full analysis pipeline runs only when you ask.
         </p>
         <Link
           to={`/contacts/${item.contact_id}`}
-          className="mt-2 inline-block text-sm text-indigo-600 hover:underline"
+          className="mt-2 inline-block text-sm text-indigo-600 dark:text-indigo-400 hover:underline"
         >
           Analyze contact →
         </Link>
@@ -48,7 +48,7 @@ export default function StrategyPanel({
         <span className="text-xs uppercase font-bold">{strategy.allowed_zone} zone</span>
       </div>
       {strategy.re_analysis_recommended && (
-        <div className="mt-2 text-xs bg-white/70 rounded-lg p-2">
+        <div className="mt-2 text-xs bg-white/70 dark:bg-slate-900/70 rounded-lg p-2">
           🔁 Re-analysis recommended: {strategy.re_analysis_reason}.{" "}
           <Link to={`/contacts/${strategy.contact_id}`} className="underline">Review</Link>
         </div>
@@ -68,7 +68,7 @@ export default function StrategyPanel({
               {tone.avoid_tone?.length ? ` — avoid ${tone.avoid_tone.join(", ")}` : ""}</p>
           )}
           {openings.length > 0 && (
-            <p><strong>Opening:</strong> “{openings[0].option}”</p>
+            <p><strong>Opening:</strong> "{openings[0].option}"</p>
           )}
           {langDo.length > 0 && <p><strong>Do:</strong> {langDo.slice(0, 4).join(" · ")}</p>}
           {langAvoid.length > 0 && <p><strong>Avoid:</strong> {langAvoid.slice(0, 4).join(" · ")}</p>}

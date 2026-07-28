@@ -49,7 +49,7 @@ export default function Today() {
     });
   }
 
-  if (isLoading) return <div className="p-10 text-slate-400">Loading your day…</div>;
+  if (isLoading) return <div className="p-10 text-slate-400 dark:text-slate-500">Loading your day…</div>;
 
   return (
     <div className="max-w-3xl mx-auto p-8">
@@ -58,15 +58,15 @@ export default function Today() {
           <h1 className="text-2xl font-bold">
             Today: {list.length} need{list.length === 1 ? "s" : ""} you
           </h1>
-          <p className="text-sm text-slate-500">
+          <p className="text-sm text-slate-500 dark:text-slate-400">
             Work one at a time. Keyboard: <kbd>j</kbd>/<kbd>k</kbd> move · <kbd>Enter</kbd> open ·{" "}
             <kbd>r</kbd> responded · <kbd>s</kbd> snooze · <kbd>d</kbd> dismiss
           </p>
         </div>
         {total > 0 && (
           <div className="text-right">
-            <div className="text-sm text-slate-500">{doneCount} of {total} handled</div>
-            <div className="w-40 h-2 bg-slate-200 rounded-full mt-1">
+            <div className="text-sm text-slate-500 dark:text-slate-400">{doneCount} of {total} handled</div>
+            <div className="w-40 h-2 bg-slate-200 dark:bg-slate-700 rounded-full mt-1">
               <div
                 className="h-2 bg-indigo-500 rounded-full transition-all"
                 style={{ width: `${total ? (doneCount / total) * 100 : 0}%` }}
@@ -80,15 +80,15 @@ export default function Today() {
         <div className="mt-16 text-center">
           <div className="text-5xl">🎉</div>
           <h2 className="text-xl font-semibold mt-3">Queue clear</h2>
-          <p className="text-slate-500 mt-1">Nothing needs you right now. Anything new will appear here instantly.</p>
+          <p className="text-slate-500 dark:text-slate-400 mt-1">Nothing needs you right now. Anything new will appear here instantly.</p>
         </div>
       ) : (
         <>
           {current && (
-            <div className="mt-6 bg-white border border-indigo-200 rounded-2xl shadow-sm p-6">
+            <div className="mt-6 bg-white dark:bg-slate-900 border border-indigo-200 dark:border-indigo-800 rounded-2xl shadow-sm p-6">
               <ItemCard item={current} businesses={businesses} selected />
               {current.priority_reasons?.length > 0 && (
-                <div className="mt-3 text-xs text-slate-500">
+                <div className="mt-3 text-xs text-slate-500 dark:text-slate-400">
                   Why it's here: {current.priority_reasons.join(" · ")}
                 </div>
               )}
@@ -98,27 +98,27 @@ export default function Today() {
                   <ExternalLink className="w-4 h-4" /> Open & reply
                 </button>
                 <button onClick={() => markResponded(current.id)}
-                  className="flex items-center justify-center gap-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded-xl py-3 text-sm font-medium">
+                  className="flex items-center justify-center gap-1 bg-emerald-50 dark:bg-emerald-950 hover:bg-emerald-100 dark:hover:bg-emerald-900 text-emerald-700 dark:text-emerald-400 rounded-xl py-3 text-sm font-medium">
                   <Check className="w-4 h-4" /> Responded
                 </button>
                 <button onClick={() => snooze(current.id, 4)}
-                  className="flex items-center justify-center gap-1 bg-sky-50 hover:bg-sky-100 text-sky-700 rounded-xl py-3 text-sm font-medium">
+                  className="flex items-center justify-center gap-1 bg-sky-50 dark:bg-sky-950 hover:bg-sky-100 dark:hover:bg-sky-900 text-sky-700 dark:text-sky-400 rounded-xl py-3 text-sm font-medium">
                   <Clock className="w-4 h-4" /> Snooze 4h
                 </button>
                 <button onClick={() => dismiss(current.id)}
-                  className="flex items-center justify-center gap-1 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl py-3 text-sm font-medium">
+                  className="flex items-center justify-center gap-1 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-xl py-3 text-sm font-medium">
                   <X className="w-4 h-4" /> Dismiss
                 </button>
               </div>
             </div>
           )}
 
-          <div className="mt-6 flex items-center gap-2 text-sm text-slate-500">
+          <div className="mt-6 flex items-center gap-2 text-sm text-slate-500 dark:text-slate-400">
             <span>Up next</span>
-            <button onClick={() => setCursor((c) => Math.max(c - 1, 0))} className="p-1 hover:bg-slate-200 rounded">
+            <button onClick={() => setCursor((c) => Math.max(c - 1, 0))} className="p-1 hover:bg-slate-200 dark:hover:bg-slate-700 rounded">
               <ChevronUp className="w-4 h-4" />
             </button>
-            <button onClick={() => setCursor((c) => Math.min(c + 1, list.length - 1))} className="p-1 hover:bg-slate-200 rounded">
+            <button onClick={() => setCursor((c) => Math.min(c + 1, list.length - 1))} className="p-1 hover:bg-slate-200 dark:hover:bg-slate-700 rounded">
               <ChevronDown className="w-4 h-4" />
             </button>
           </div>
