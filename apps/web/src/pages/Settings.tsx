@@ -122,6 +122,7 @@ function Connections() {
   const [err, setErr] = useState("");
   const [oauthNotice, setOauthNotice] = useState<{ kind: "ok" | "err"; msg: string } | null>(null);
   const [deepBackfillMsg, setDeepBackfillMsg] = useState("");
+  const [importStrategiesMsg, setImportStrategiesMsg] = useState("");
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -176,6 +177,14 @@ function Connections() {
       qc.invalidateQueries({ queryKey: ["gmail-accounts"] });
     },
     onError: (e) => setDeepBackfillMsg(`Error: ${(e as Error).message}`),
+  });
+
+  const importStrategies = useMutation({
+    mutationFn: async () => await api<{ ok: boolean; strategies_created: number; matched_to_mcc_contact: number; skipped: number; errors: number; total_ae_briefs: number }>("agentedge-import-strategies", {}),
+    onSuccess: (d) => {
+      setImportStrategiesMsg(`Done — ${d.strategies_created} strategies imported (${d.matched_to_mcc_contact} contacts matched, ${d.skipped} skipped, ${d.errors} errors). Safe to run again; duplicates are skipped.`);
+    },
+    onError: (e) => setImportStrategiesMsg(`Error: ${(e as Error).message}`),
   });
 
   return (
@@ -243,6 +252,28 @@ function Connections() {
           {oauthNotice.kind === "ok" ? "✓ " : "✗ Gmail error: "}{oauthNotice.msg}
         </p>
       )}
+      <Card
+        title="AgentEdge"
+        subtitle="One-time migration: import client strategies from AgentEdge into your contact profiles here. New bookings, BDMs, suppliers, and promotions are pushed to AgentEdge automatically as they arrive."
+      >
+        <p className="text-sm text-slate-600 dark:text-slate-400 mb-3">
+          Requires your AgentEdge service role key — paste it under API keys first.
+          Matches by email address; skips contacts already in the queue. Safe to re-run.
+        </p>
+        <button
+          onClick={() => { setImportStrategiesMsg(""); importStrategies.mutate(); }}
+          disabled={importStrategies.isPending}
+          className="border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 rounded-lg px-4 py-2 text-sm hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-50"
+        >
+          {importStrategies.isPending ? "Importing…" : "Import strategies from AgentEdge"}
+        </button>
+        {importStrategiesMsg && (
+          <p className={`mt-2 text-xs ${importStrategiesMsg.startsWith("Error") ? "text-red-600 dark:text-red-400" : "text-slate-600 dark:text-slate-400"}`}>
+            {importStrategiesMsg}
+          </p>
+        )}
+      </Card>
+
       <Card
         title="Text & WhatsApp (dormant until you're ready)"
         subtitle="Fully built and waiting. When you've prepped your clients: add Twilio credentials under API keys, then search & buy your dedicated business number here."

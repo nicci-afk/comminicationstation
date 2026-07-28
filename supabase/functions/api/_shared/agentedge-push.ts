@@ -58,6 +58,11 @@ export async function maybePushToAgentedge(
       await pushPromotion(aeKey, anthropicKey, msg, from, content);
     }
 
+    // Stamp the queue item so the relay cron skips it (no double-push)
+    if (qi?.id) {
+      await db.from("queue_items").update({ agentedge_relayed_at: new Date().toISOString() }).eq("id", qi.id);
+    }
+
     await db.from("agentedge_sync_log").insert({
       user_id: userId,
       direction: "pushed",
