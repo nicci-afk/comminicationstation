@@ -31,8 +31,20 @@ export interface QueueItem {
   sla_due_at: string | null;
   follow_up_at: string | null;
   escalated: boolean;
+  expense_type: string | null;
+  property_ids: string[] | null;
+  is_split_clone: boolean;
   created_at: string;
   updated_at: string;
+}
+
+export interface Property {
+  id: string;
+  business_id: string;
+  name: string;
+  address: string | null;
+  active: boolean;
+  sort_order: number;
 }
 
 export interface Message {

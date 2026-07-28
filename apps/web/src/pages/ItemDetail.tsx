@@ -4,8 +4,9 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, Ban, Check, Clock, Send, Sparkles, UserPlus, X } from "lucide-react";
+import { ArrowLeft, Ban, Check, Clock, Plus, Send, Sparkles, UserPlus, X } from "lucide-react";
 import { api, supabase } from "../lib/supabase";
+import type { Property } from "../lib/types";
 
 const CATEGORIES: [string, string][] = [
   ["booking", "Booking (travel)"],
@@ -51,8 +52,14 @@ export default function ItemDetail() {
   const [recatCategory, setRecatCategory] = useState("");
   const [recatBusiness, setRecatBusiness] = useState<string | null>(null);
   const [recatBusinesses, setRecatBusinesses] = useState<string[]>([]);
+  const [expenseType, setExpenseType] = useState("");
+  const [selectedPropertyIds, setSelectedPropertyIds] = useState<string[]>([]);
+  const [newPropName, setNewPropName] = useState("");
+  const [addingProp, setAddingProp] = useState(false);
   const [recatInit, setRecatInit] = useState(false);
   const [recatStatus, setRecatStatus] = useState<"" | "saving" | "saved">("");
+
+  const isExpenseCat = recatCategory === "receipt" || recatCategory === "expense";
 
   const { data: item } = useQuery({
     queryKey: ["item", id],
@@ -67,6 +74,29 @@ export default function ItemDetail() {
   const { data: contact } = useContact(item?.contact_id ?? null);
   const { data: strategies = [] } = useStrategies(item?.contact_id ?? null);
   const { data: businesses = [] } = useBusinesses();
+
+  // IDs of checked businesses whose name includes "Real Estate" — drives property picker
+  const realEstateBizIds = businesses
+    .filter((b) => recatBusinesses.includes(b.id) && b.name.toLowerCase().includes("real estate"))
+    .map((b) => b.id);
+  const hasRealEstateBusiness = isExpenseCat && realEstateBizIds.length > 0;
+
+  const { data: properties = [] } = useQuery<Property[]>({
+    queryKey: ["properties", realEstateBizIds],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("properties")
+        .select("id, business_id, name, address, active, sort_order")
+        .in("business_id", realEstateBizIds)
+        .eq("active", true)
+        .order("sort_order")
+        .order("name");
+      if (error) throw error;
+      return (data ?? []) as Property[];
+    },
+    enabled: hasRealEstateBusiness,
+  });
+
   const strategy = strategies.find((s) => s.business_id === item?.business_id) ?? strategies[0] ?? null;
   const { data: comm } = useArtifactOutput(strategy?.comm_artifact_id ?? null);
 
@@ -168,6 +198,8 @@ export default function ItemDetail() {
       setRecatCategory(item.category);
       setRecatBusiness(item.business_id);
       setRecatBusinesses(item.business_id ? [item.business_id] : []);
+      setExpenseType(item.expense_type ?? "");
+      setSelectedPropertyIds(item.property_ids ?? []);
       setRecatInit(true);
     }
   }, [item, recatInit]);
@@ -180,54 +212,30 @@ export default function ItemDetail() {
     nav(-1);
   }
 
-  const isExpenseCat = recatCategory === "receipt" || recatCategory === "expense";
-
   async function handleRecat() {
     setRecatStatus("saving");
     setError("");
 
-    if (isExpenseCat && recatBusinesses.length > 1) {
-      const splitLabel = `1/${recatBusinesses.length} split`;
-      const [firstBiz, ...restBizs] = recatBusinesses;
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) { setError("Not authenticated"); setRecatStatus(""); return; }
-      // Update this item to the first business
-      const { error: rpcErr } = await supabase.rpc("recategorize_queue_item", {
-        p_queue_item_id: item!.id,
-        p_category: recatCategory,
-        p_business_id: firstBiz,
-      });
+    if (isExpenseCat) {
+      // All expense/receipt recategorizations go through the new SECURITY DEFINER
+      // RPC — this fixes the RLS hole and handles both single and split cases.
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { error: rpcErr } = await (supabase.rpc as any)(
+        "split_queue_item_for_businesses",
+        {
+          p_queue_item_id: item!.id,
+          p_business_ids: recatBusinesses,
+          p_category: recatCategory,
+          p_expense_type: expenseType || null,
+          p_property_ids: selectedPropertyIds.length > 0 ? selectedPropertyIds : null,
+        },
+      );
       if (rpcErr) { setError(rpcErr.message); setRecatStatus(""); return; }
-      // Tag the original with the split note
-      await supabase.from("queue_items").update({
-        priority_reasons: [...(item!.priority_reasons ?? []).filter(r => !r.startsWith("1/")), splitLabel],
-      }).eq("id", item!.id);
-      // Create copies for remaining businesses
-      for (const bizId of restBizs) {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const { error: insErr } = await supabase.from("queue_items").insert({
-          user_id: (await supabase.auth.getUser()).data.user!.id,
-          thread_id: item!.thread_id,
-          contact_id: item!.contact_id,
-          business_id: bizId,
-          category: recatCategory,
-          state: item!.state,
-          priority: item!.priority,
-          channel: item!.channel,
-          sender_name: item!.sender_name,
-          sender_identifier: item!.sender_identifier,
-          title: item!.title,
-          preview: item!.preview,
-          priority_reasons: [splitLabel],
-        } as any);
-        if (insErr) { setError(insErr.message); setRecatStatus(""); return; }
-      }
     } else {
-      const bizId = isExpenseCat ? (recatBusinesses[0] ?? null) : recatBusiness;
       const { error: rpcErr } = await supabase.rpc("recategorize_queue_item", {
         p_queue_item_id: item!.id,
         p_category: recatCategory,
-        p_business_id: bizId,
+        p_business_id: recatBusiness,
       });
       if (rpcErr) { setError(rpcErr.message); setRecatStatus(""); return; }
     }
@@ -237,9 +245,30 @@ export default function ItemDetail() {
     qc.invalidateQueries({ queryKey: ["queue"] });
   }
 
-  const recatChanged = recatCategory !== item.category ||
+  async function handleAddProperty() {
+    if (!newPropName.trim() || realEstateBizIds.length === 0) return;
+    setAddingProp(true);
+    const { data: prop, error } = await supabase
+      .from("properties")
+      .insert({ business_id: realEstateBizIds[0], name: newPropName.trim() })
+      .select("id, business_id, name, address, active, sort_order")
+      .single();
+    if (!error && prop) {
+      setSelectedPropertyIds((prev) => [...prev, (prop as Property).id]);
+      setNewPropName("");
+      qc.invalidateQueries({ queryKey: ["properties", realEstateBizIds] });
+    }
+    setAddingProp(false);
+  }
+
+  const recatChanged =
+    recatCategory !== item.category ||
+    expenseType !== (item.expense_type ?? "") ||
+    JSON.stringify([...selectedPropertyIds].sort()) !==
+      JSON.stringify([...(item.property_ids ?? [])].sort()) ||
     (isExpenseCat
-      ? JSON.stringify([...(recatBusinesses)].sort()) !== JSON.stringify([item.business_id ?? ""].filter(Boolean))
+      ? JSON.stringify([...recatBusinesses].sort()) !==
+        JSON.stringify([item.business_id ?? ""].filter(Boolean).sort())
       : recatBusiness !== item.business_id);
 
   return (
@@ -414,7 +443,7 @@ export default function ItemDetail() {
         <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl p-4">
           <h3 className="text-sm font-semibold">Recategorize</h3>
           <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-            Saving also trains a rule so future messages from this sender are pre-routed.
+            Saving trains a rule — future messages from this sender are pre-routed automatically.
           </p>
           <div className="mt-2 space-y-2">
             <select
@@ -422,7 +451,6 @@ export default function ItemDetail() {
               onChange={(e) => {
                 setRecatCategory(e.target.value);
                 setRecatStatus("");
-                // Reset business selection when switching to/from expense categories
                 if (e.target.value === "receipt" || e.target.value === "expense") {
                   setRecatBusinesses(item.business_id ? [item.business_id] : []);
                 }
@@ -431,8 +459,10 @@ export default function ItemDetail() {
             >
               {CATEGORIES.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
             </select>
+
             {isExpenseCat ? (
               <>
+                {/* Business checkboxes */}
                 <div className="border border-slate-200 dark:border-slate-700 rounded-lg p-2 space-y-1.5 max-h-44 overflow-y-auto">
                   {businesses.map((b) => (
                     <label key={b.id} className="flex items-center gap-2 text-sm cursor-pointer select-none">
@@ -453,8 +483,78 @@ export default function ItemDetail() {
                 </div>
                 {recatBusinesses.length > 1 && (
                   <p className="text-xs text-indigo-700 dark:text-indigo-400">
-                    Will create {recatBusinesses.length} items — one per business, each marked "1/{recatBusinesses.length} split."
+                    Will create {recatBusinesses.length} items — one per business, each marked "1/{recatBusinesses.length} split." Future expenses from this sender auto-split the same way.
                   </p>
+                )}
+
+                {/* Expense type */}
+                <select
+                  value={expenseType}
+                  onChange={(e) => { setExpenseType(e.target.value); setRecatStatus(""); }}
+                  className="w-full border border-slate-200 dark:border-slate-700 rounded-lg px-2 py-1.5 text-sm bg-white dark:bg-slate-800 dark:text-slate-100"
+                >
+                  <option value="">— expense type —</option>
+                  <option value="marketing">Marketing &amp; Advertising</option>
+                  <option value="software">Software &amp; Subscriptions</option>
+                  <option value="office_supplies">Office Supplies</option>
+                  <option value="travel">Travel &amp; Transportation</option>
+                  <option value="meals">Meals &amp; Entertainment</option>
+                  <option value="utilities">Utilities</option>
+                  <option value="insurance">Insurance</option>
+                  <option value="professional_services">Professional Services</option>
+                  <option value="maintenance">Maintenance &amp; Repairs</option>
+                  <option value="other">Other</option>
+                </select>
+
+                {/* Property picker — only when a real-estate business is checked */}
+                {hasRealEstateBusiness && (
+                  <div className="border border-slate-200 dark:border-slate-700 rounded-lg p-2 space-y-1.5">
+                    <p className="text-xs font-medium text-slate-600 dark:text-slate-400">Property (Real Estate)</p>
+                    <label className="flex items-center gap-2 text-sm cursor-pointer select-none">
+                      <input
+                        type="checkbox"
+                        checked={selectedPropertyIds.length === 0}
+                        onChange={() => { setSelectedPropertyIds([]); setRecatStatus(""); }}
+                        className="rounded border-slate-300 text-indigo-600"
+                      />
+                      Entire company
+                    </label>
+                    {properties.map((p) => (
+                      <label key={p.id} className="flex items-center gap-2 text-sm cursor-pointer select-none">
+                        <input
+                          type="checkbox"
+                          checked={selectedPropertyIds.includes(p.id)}
+                          onChange={(e) => {
+                            setSelectedPropertyIds((prev) =>
+                              e.target.checked ? [...prev, p.id] : prev.filter((x) => x !== p.id)
+                            );
+                            setRecatStatus("");
+                          }}
+                          className="rounded border-slate-300 text-indigo-600"
+                        />
+                        <span>{p.name}</span>
+                        {p.address && <span className="text-xs text-slate-400 dark:text-slate-500 truncate">{p.address}</span>}
+                      </label>
+                    ))}
+                    {/* Inline add-property */}
+                    <div className="flex gap-1 pt-1">
+                      <input
+                        type="text"
+                        value={newPropName}
+                        onChange={(e) => setNewPropName(e.target.value)}
+                        onKeyDown={(e) => e.key === "Enter" && handleAddProperty()}
+                        placeholder="Add property…"
+                        className="flex-1 border border-slate-200 dark:border-slate-700 rounded px-2 py-1 text-xs bg-white dark:bg-slate-800 dark:text-slate-100"
+                      />
+                      <button
+                        onClick={handleAddProperty}
+                        disabled={!newPropName.trim() || addingProp}
+                        className="flex items-center gap-0.5 px-2 py-1 text-xs bg-indigo-600 text-white rounded disabled:opacity-50"
+                      >
+                        <Plus className="w-3 h-3" />
+                      </button>
+                    </div>
+                  </div>
                 )}
               </>
             ) : (
@@ -467,6 +567,7 @@ export default function ItemDetail() {
                 {businesses.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
               </select>
             )}
+
             <button
               onClick={handleRecat}
               disabled={recatStatus === "saving" || !recatChanged || (isExpenseCat && recatBusinesses.length === 0)}
@@ -475,7 +576,7 @@ export default function ItemDetail() {
               {recatStatus === "saving"
                 ? "Saving…"
                 : recatStatus === "saved"
-                ? `Saved ✓ · rule created`
+                ? "Saved ✓ · rule trained"
                 : isExpenseCat && recatBusinesses.length > 1
                 ? `Split across ${recatBusinesses.length} · save & train rule`
                 : "Save & train rule"}
