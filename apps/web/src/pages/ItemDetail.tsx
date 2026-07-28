@@ -155,6 +155,8 @@ export default function ItemDetail() {
     if (isExpenseCat && recatBusinesses.length > 1) {
       const splitLabel = `1/${recatBusinesses.length} split`;
       const [firstBiz, ...restBizs] = recatBusinesses;
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) { setError("Not authenticated"); setRecatStatus(""); return; }
       // Update this item to the first business
       const { error: rpcErr } = await supabase.rpc("recategorize_queue_item", {
         p_queue_item_id: item!.id,
@@ -170,6 +172,7 @@ export default function ItemDetail() {
       for (const bizId of restBizs) {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const { error: insErr } = await supabase.from("queue_items").insert({
+          user_id: user.id,
           thread_id: item!.thread_id,
           contact_id: item!.contact_id,
           business_id: bizId,
