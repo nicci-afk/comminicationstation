@@ -210,8 +210,7 @@ export default function Contacts() {
         {contacts.map((c) => {
           const s = c.contact_strategies?.[0];
           const email = c.contact_channels?.find((ch) => ch.channel_type === "email")?.canonical_value;
-          const phone = c.contact_channels?.find((ch) => ch.channel_type === "phone")?.raw_value
-            ?? c.contact_channels?.find((ch) => ch.channel_type === "phone")?.canonical_value;
+          const phone = c.contact_channels?.find((ch) => ch.channel_type === "phone")?.canonical_value;
           const bday = c.birthday
             ? new Date(c.birthday + "T00:00:00").toLocaleDateString(undefined, { month: "short", day: "numeric" })
             : null;

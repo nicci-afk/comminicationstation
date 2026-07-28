@@ -1,7 +1,7 @@
 // Contact profile + the "Analyze contact" trigger (the only place the
 // expensive 3-stage pipeline can start) + full stored strategy rendering.
 // Also hosts: Edit contact, Log interaction (post-interaction update packet).
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, GitMerge, MessageSquare, Pencil, Play, Star } from "lucide-react";
@@ -439,10 +439,10 @@ function MergeContactDialog({
           {selected && status === "confirming" && (
             <button
               onClick={() => { setStatus("merging"); merge.mutate(); }}
-              disabled={status === "merging"}
+              disabled={merge.isPending}
               className="bg-amber-600 text-white rounded-lg px-4 py-2 text-sm hover:bg-amber-700 disabled:opacity-50"
             >
-              {status === "merging" ? "Merging…" : `Merge into ${selected.display_name}`}
+              {merge.isPending ? "Merging…" : `Merge into ${selected.display_name}`}
             </button>
           )}
         </div>
