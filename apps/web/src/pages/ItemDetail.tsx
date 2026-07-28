@@ -49,6 +49,7 @@ export default function ItemDetail() {
   const [linkStatus, setLinkStatus] = useState<"" | "saving" | "saved">("");
   const [recatCategory, setRecatCategory] = useState("");
   const [recatBusiness, setRecatBusiness] = useState<string | null>(null);
+  const [recatBusinesses, setRecatBusinesses] = useState<string[]>([]);
   const [recatInit, setRecatInit] = useState(false);
   const [recatStatus, setRecatStatus] = useState<"" | "saving" | "saved">("");
 
@@ -132,6 +133,7 @@ export default function ItemDetail() {
     if (item && !recatInit) {
       setRecatCategory(item.category);
       setRecatBusiness(item.business_id);
+      setRecatBusinesses(item.business_id ? [item.business_id] : []);
       setRecatInit(true);
     }
   }, [item, recatInit]);
@@ -144,21 +146,64 @@ export default function ItemDetail() {
     nav(-1);
   }
 
+  const isExpenseCat = recatCategory === "receipt" || recatCategory === "expense";
+
   async function handleRecat() {
     setRecatStatus("saving");
     setError("");
-    const { error: rpcErr } = await supabase.rpc("recategorize_queue_item", {
-      p_queue_item_id: item!.id,
-      p_category: recatCategory,
-      p_business_id: recatBusiness,
-    });
-    if (rpcErr) { setError(rpcErr.message); setRecatStatus(""); return; }
+
+    if (isExpenseCat && recatBusinesses.length > 1) {
+      const splitLabel = `1/${recatBusinesses.length} split`;
+      const [firstBiz, ...restBizs] = recatBusinesses;
+      // Update this item to the first business
+      const { error: rpcErr } = await supabase.rpc("recategorize_queue_item", {
+        p_queue_item_id: item!.id,
+        p_category: recatCategory,
+        p_business_id: firstBiz,
+      });
+      if (rpcErr) { setError(rpcErr.message); setRecatStatus(""); return; }
+      // Tag the original with the split note
+      await supabase.from("queue_items").update({
+        priority_reasons: [...(item!.priority_reasons ?? []).filter(r => !r.startsWith("1/")), splitLabel],
+      }).eq("id", item!.id);
+      // Create copies for remaining businesses
+      for (const bizId of restBizs) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { error: insErr } = await supabase.from("queue_items").insert({
+          thread_id: item!.thread_id,
+          contact_id: item!.contact_id,
+          business_id: bizId,
+          category: recatCategory,
+          state: item!.state,
+          priority: item!.priority,
+          channel: item!.channel,
+          sender_name: item!.sender_name,
+          sender_identifier: item!.sender_identifier,
+          title: item!.title,
+          preview: item!.preview,
+          priority_reasons: [splitLabel],
+        } as any);
+        if (insErr) { setError(insErr.message); setRecatStatus(""); return; }
+      }
+    } else {
+      const bizId = isExpenseCat ? (recatBusinesses[0] ?? null) : recatBusiness;
+      const { error: rpcErr } = await supabase.rpc("recategorize_queue_item", {
+        p_queue_item_id: item!.id,
+        p_category: recatCategory,
+        p_business_id: bizId,
+      });
+      if (rpcErr) { setError(rpcErr.message); setRecatStatus(""); return; }
+    }
+
     setRecatStatus("saved");
     qc.invalidateQueries({ queryKey: ["item", id] });
     qc.invalidateQueries({ queryKey: ["queue"] });
   }
 
-  const recatChanged = recatCategory !== item.category || recatBusiness !== item.business_id;
+  const recatChanged = recatCategory !== item.category ||
+    (isExpenseCat
+      ? JSON.stringify([...(recatBusinesses)].sort()) !== JSON.stringify([item.business_id ?? ""].filter(Boolean))
+      : recatBusiness !== item.business_id);
 
   return (
     <div className="max-w-5xl mx-auto p-6 grid grid-cols-[1fr_340px] gap-6">
@@ -308,25 +353,66 @@ export default function ItemDetail() {
           <div className="mt-2 space-y-2">
             <select
               value={recatCategory}
-              onChange={(e) => { setRecatCategory(e.target.value); setRecatStatus(""); }}
+              onChange={(e) => {
+                setRecatCategory(e.target.value);
+                setRecatStatus("");
+                // Reset business selection when switching to/from expense categories
+                if (e.target.value === "receipt" || e.target.value === "expense") {
+                  setRecatBusinesses(item.business_id ? [item.business_id] : []);
+                }
+              }}
               className="w-full border border-slate-200 rounded-lg px-2 py-1.5 text-sm bg-white"
             >
               {CATEGORIES.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
             </select>
-            <select
-              value={recatBusiness ?? ""}
-              onChange={(e) => { setRecatBusiness(e.target.value || null); setRecatStatus(""); }}
-              className="w-full border border-slate-200 rounded-lg px-2 py-1.5 text-sm bg-white"
-            >
-              <option value="">No business</option>
-              {businesses.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
-            </select>
+            {isExpenseCat ? (
+              <>
+                <div className="border border-slate-200 rounded-lg p-2 space-y-1.5 max-h-44 overflow-y-auto">
+                  {businesses.map((b) => (
+                    <label key={b.id} className="flex items-center gap-2 text-sm cursor-pointer select-none">
+                      <input
+                        type="checkbox"
+                        checked={recatBusinesses.includes(b.id)}
+                        onChange={(e) => {
+                          setRecatBusinesses((prev) =>
+                            e.target.checked ? [...prev, b.id] : prev.filter((x) => x !== b.id)
+                          );
+                          setRecatStatus("");
+                        }}
+                        className="rounded border-slate-300 text-indigo-600"
+                      />
+                      {b.name}
+                    </label>
+                  ))}
+                </div>
+                {recatBusinesses.length > 1 && (
+                  <p className="text-xs text-indigo-700">
+                    Will create {recatBusinesses.length} items — one per business, each marked "1/{recatBusinesses.length} split."
+                  </p>
+                )}
+              </>
+            ) : (
+              <select
+                value={recatBusiness ?? ""}
+                onChange={(e) => { setRecatBusiness(e.target.value || null); setRecatStatus(""); }}
+                className="w-full border border-slate-200 rounded-lg px-2 py-1.5 text-sm bg-white"
+              >
+                <option value="">No business</option>
+                {businesses.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
+              </select>
+            )}
             <button
               onClick={handleRecat}
-              disabled={recatStatus === "saving" || !recatChanged}
+              disabled={recatStatus === "saving" || !recatChanged || (isExpenseCat && recatBusinesses.length === 0)}
               className="w-full bg-indigo-600 text-white rounded-lg py-1.5 text-sm hover:bg-indigo-700 disabled:opacity-50"
             >
-              {recatStatus === "saving" ? "Saving…" : recatStatus === "saved" ? "Saved ✓ · rule created" : "Save & train rule"}
+              {recatStatus === "saving"
+                ? "Saving…"
+                : recatStatus === "saved"
+                ? `Saved ✓ · rule created`
+                : isExpenseCat && recatBusinesses.length > 1
+                ? `Split across ${recatBusinesses.length} · save & train rule`
+                : "Save & train rule"}
             </button>
           </div>
         </div>
