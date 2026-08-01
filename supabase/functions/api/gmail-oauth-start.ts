@@ -29,6 +29,11 @@ export default async function handler(req: Request): Promise<Response> {
     const cfg = await googleClientConfig(db);
     const appUrl = (await getConfig(db, "app_url"))?.value as string | undefined;
 
+    let hint: string | undefined;
+    if (req.method === "POST") {
+      try { const body = await req.json(); hint = body?.hint ?? undefined; } catch { /* no body */ }
+    }
+
     const state = crypto.randomUUID();
     const { error } = await db.from("oauth_states").insert({
       state,
@@ -47,6 +52,7 @@ export default async function handler(req: Request): Promise<Response> {
     url.searchParams.set("access_type", "offline");
     url.searchParams.set("prompt", "consent");
     url.searchParams.set("state", state);
+    if (hint) url.searchParams.set("login_hint", hint);
     return json({ url: url.toString() });
   } catch (e) {
     const status = e instanceof HttpError ? e.status : 500;

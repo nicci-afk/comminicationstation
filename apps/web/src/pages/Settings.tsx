@@ -157,7 +157,7 @@ function Connections() {
   });
 
   const connect = useMutation({
-    mutationFn: async () => await api<{ url: string }>("gmail-oauth-start", {}),
+    mutationFn: async (hint?: string) => await api<{ url: string }>("gmail-oauth-start", hint ? { hint } : {}),
     onSuccess: (d) => { window.location.href = d.url; },
     onError: (e) => setErr((e as Error).message),
   });
@@ -207,22 +207,33 @@ function Connections() {
       <Card title="Gmail accounts" subtitle="Connect every inbox you want in the queue. Read-only access — you keep replying from Gmail.">
         <ul className="space-y-2">
           {accounts.map((a) => (
-            <li key={a.id} className="flex items-center gap-2 text-sm">
-              <span className={`w-2 h-2 rounded-full ${a.status === "active" ? "bg-emerald-500" : a.status === "error" ? "bg-red-500" : "bg-amber-400"}`} />
+            <li key={a.id} className="flex items-center gap-2 text-sm flex-wrap">
+              <span className={`w-2 h-2 rounded-full shrink-0 ${a.status === "active" ? "bg-emerald-500" : a.status === "error" ? "bg-red-500" : "bg-amber-400"}`} />
               <span className="font-medium">{a.email_address}</span>
               <span className="text-xs text-slate-400 dark:text-slate-500">
                 {a.status}{a.last_sync_at ? ` · synced ${fmtWhen(a.last_sync_at)}` : ""}
                 {a.backfill_done ? "" : " · importing…"}
                 {a.watch_expiration ? " · push ✓" : " · polling"}
+                {a.has_send_scope ? " · can reply ✓" : ""}
               </span>
               {a.last_error && <span className="text-xs text-red-500 truncate">{a.last_error}</span>}
+              {!a.has_send_scope && googleReady && (
+                <button
+                  onClick={() => connect.mutate(a.email_address)}
+                  disabled={connect.isPending}
+                  className="ml-auto text-xs bg-amber-50 dark:bg-amber-950 border border-amber-300 dark:border-amber-700 text-amber-700 dark:text-amber-300 rounded px-2 py-0.5 hover:bg-amber-100 dark:hover:bg-amber-900 disabled:opacity-50"
+                  title="Re-authorize this account to enable sending replies from within the app"
+                >
+                  Grant reply scope
+                </button>
+              )}
             </li>
           ))}
           {accounts.length === 0 && <li className="text-sm text-slate-400 dark:text-slate-500">No Gmail accounts connected yet.</li>}
         </ul>
         <div className="mt-3 flex flex-wrap gap-2">
           <button
-            onClick={() => connect.mutate()}
+            onClick={() => connect.mutate(undefined)}
             disabled={!googleReady || connect.isPending}
             className="bg-indigo-600 text-white rounded-lg px-4 py-2 text-sm disabled:opacity-50"
           >
