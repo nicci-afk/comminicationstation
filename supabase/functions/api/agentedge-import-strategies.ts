@@ -158,6 +158,7 @@ export default async function handler(req: Request): Promise<Response> {
           .insert({
             user_id: userId,
             contact_id: contactId,
+            run_id: crypto.randomUUID(),
             stage: 3,
             prompt_id: "agentedge_migration_v1",
             input_schema_version: "agentedge_migration_v1",
