@@ -129,10 +129,10 @@ export default function Contacts() {
   }
 
   return (
-    <div className="max-w-3xl mx-auto p-8">
-      <div className="flex items-center justify-between">
+    <div className="max-w-3xl mx-auto p-4 sm:p-8">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <h1 className="text-2xl font-bold">Contacts</h1>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <input
             ref={fileRef}
             type="file"

@@ -41,8 +41,9 @@ function Shell() {
     { to: "/settings", label: "Settings", icon: SettingsIcon },
   ];
   return (
-    <div className="min-h-screen flex">
-      <aside className="w-52 shrink-0 border-r border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 flex flex-col">
+    <div className="min-h-[100dvh] flex">
+      {/* Sidebar — desktop only */}
+      <aside className="hidden sm:flex w-52 shrink-0 border-r border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 flex-col">
         <div className="px-4 py-4 flex items-center gap-2 border-b border-slate-100 dark:border-slate-800">
           <Landmark className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
           <span className="font-semibold">Command Center</span>
@@ -71,7 +72,9 @@ function Shell() {
           Sign out
         </button>
       </aside>
-      <main className="flex-1 min-w-0">
+
+      {/* Main content — extra bottom padding on mobile for bottom nav */}
+      <main className="flex-1 min-w-0 pb-16 sm:pb-0">
         <Routes>
           <Route path="/" element={<Navigate to="/today" replace />} />
           <Route path="/today" element={<Today />} />
@@ -84,6 +87,26 @@ function Shell() {
           <Route path="*" element={<Navigate to="/today" replace />} />
         </Routes>
       </main>
+
+      {/* Bottom nav — mobile only */}
+      <nav className="sm:hidden fixed bottom-0 inset-x-0 z-40 border-t border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 flex safe-area-pb">
+        {nav.map(({ to, label, icon: Icon }) => (
+          <NavLink
+            key={to}
+            to={to}
+            className={({ isActive }) =>
+              `flex-1 flex flex-col items-center justify-center py-2 gap-0.5 text-[10px] font-medium transition min-h-[56px] ${
+                isActive
+                  ? "text-indigo-600 dark:text-indigo-400"
+                  : "text-slate-500 dark:text-slate-400"
+              }`
+            }
+          >
+            <Icon className="w-5 h-5" />
+            {label}
+          </NavLink>
+        ))}
+      </nav>
     </div>
   );
 }

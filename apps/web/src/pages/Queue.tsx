@@ -17,7 +17,7 @@ export default function Queue() {
   const { data: items = [], isLoading } = useQueue(view.states, businessId);
 
   return (
-    <div className="max-w-4xl mx-auto p-8">
+    <div className="max-w-4xl mx-auto p-4 sm:p-8">
       <h1 className="text-2xl font-bold">Queue</h1>
       <div className="mt-4 flex flex-wrap items-center gap-2">
         {VIEWS.map((v) => (

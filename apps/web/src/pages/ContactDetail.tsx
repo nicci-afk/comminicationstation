@@ -55,7 +55,7 @@ export default function ContactDetail() {
   if (!contact) return <div className="p-10 text-slate-400 dark:text-slate-500">Loading…</div>;
 
   return (
-    <div className="max-w-3xl mx-auto p-8">
+    <div className="max-w-3xl mx-auto p-4 sm:p-8">
       <button onClick={() => nav(-1)} className="flex items-center gap-1 text-sm text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200">
         <ArrowLeft className="w-4 h-4" /> Back
       </button>
@@ -273,7 +273,7 @@ function EditContactDialog({
 
   return (
     <div className="fixed inset-0 bg-black/30 grid place-items-center z-50" onClick={onClose}>
-      <div className="bg-white dark:bg-slate-900 rounded-2xl p-6 w-[520px] space-y-3 max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+      <div className="bg-white dark:bg-slate-900 rounded-2xl p-6 w-full max-w-[520px] mx-4 sm:mx-0 space-y-3 max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
         <h2 className="font-semibold">Edit contact</h2>
 
         <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Display name"
@@ -383,7 +383,7 @@ function MergeContactDialog({
 
   return (
     <div className="fixed inset-0 bg-black/30 grid place-items-center z-50" onClick={onClose}>
-      <div className="bg-white dark:bg-slate-900 rounded-2xl p-6 w-[480px] space-y-4" onClick={(e) => e.stopPropagation()}>
+      <div className="bg-white dark:bg-slate-900 rounded-2xl p-6 w-full max-w-[480px] mx-4 sm:mx-0 space-y-4" onClick={(e) => e.stopPropagation()}>
         <div>
           <h2 className="font-semibold">Merge contact</h2>
           <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
@@ -522,7 +522,7 @@ function InteractionUpdateDialog({
 
   return (
     <div className="fixed inset-0 bg-black/30 grid place-items-center z-50" onClick={onClose}>
-      <div className="bg-white dark:bg-slate-900 rounded-2xl p-6 w-[560px] space-y-3 max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+      <div className="bg-white dark:bg-slate-900 rounded-2xl p-6 w-full max-w-[560px] mx-4 sm:mx-0 space-y-3 max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
         <h2 className="font-semibold">Log interaction with {contactName}</h2>
         <p className="text-xs text-slate-500 dark:text-slate-400">
           Records what happened so the strategy evolves over time. Press Enter in tag fields to add each item.
@@ -642,7 +642,7 @@ function AnalyzeDialog({
 
   return (
     <div className="fixed inset-0 bg-black/30 grid place-items-center z-50" onClick={onClose}>
-      <div className="bg-white dark:bg-slate-900 rounded-2xl p-6 w-[480px] space-y-3" onClick={(e) => e.stopPropagation()}>
+      <div className="bg-white dark:bg-slate-900 rounded-2xl p-6 w-full max-w-[480px] mx-4 sm:mx-0 space-y-3" onClick={(e) => e.stopPropagation()}>
         <h2 className="font-semibold">Analyze {contactName}</h2>
         <p className="text-xs text-slate-500 dark:text-slate-400">
           Runs the full 3-stage pipeline (Perplexity public-web research → ChatGPT persona strategy →

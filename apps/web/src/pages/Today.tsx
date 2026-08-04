@@ -52,8 +52,8 @@ export default function Today() {
   if (isLoading) return <div className="p-10 text-slate-400 dark:text-slate-500">Loading your day…</div>;
 
   return (
-    <div className="max-w-3xl mx-auto p-8">
-      <div className="flex items-end justify-between">
+    <div className="max-w-3xl mx-auto p-4 sm:p-8">
+      <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold">
             Today: {list.length} need{list.length === 1 ? "s" : ""} you
@@ -92,7 +92,7 @@ export default function Today() {
                   Why it's here: {current.priority_reasons.join(" · ")}
                 </div>
               )}
-              <div className="mt-4 grid grid-cols-4 gap-2">
+              <div className="mt-4 grid grid-cols-2 sm:grid-cols-4 gap-2">
                 <button onClick={() => nav(`/item/${current.id}`)}
                   className="flex items-center justify-center gap-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl py-3 text-sm font-medium">
                   <ExternalLink className="w-4 h-4" /> Open & reply

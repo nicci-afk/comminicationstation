@@ -2,3 +2,6 @@
 
 html { font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif; }
 body { @apply bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100; }
+
+/* iOS safe-area inset for bottom nav */
+.safe-area-pb { padding-bottom: env(safe-area-inset-bottom, 0); }

@@ -9,7 +9,7 @@ const TABS = ["Account", "Connections", "API keys", "Businesses & rules", "Spend
 export default function Settings() {
   const [tab, setTab] = useState<(typeof TABS)[number]>("Connections");
   return (
-    <div className="max-w-3xl mx-auto p-8">
+    <div className="max-w-3xl mx-auto p-4 sm:p-8">
       <h1 className="text-2xl font-bold">Settings</h1>
       <div className="mt-4 flex flex-wrap gap-2">
         {TABS.map((t) => (
@@ -604,7 +604,7 @@ function RuleForm({ businesses, onAdd }: { businesses: { id: string; name: strin
     setPattern("");
   }
   return (
-    <form onSubmit={submit} className="grid grid-cols-6 gap-2 text-sm">
+    <form onSubmit={submit} className="grid grid-cols-2 sm:grid-cols-6 gap-2 text-sm">
       <select value={ruleType} onChange={(e) => setRuleType(e.target.value)} className="border border-slate-300 dark:border-slate-600 rounded-lg px-2 py-1.5 bg-white dark:bg-slate-800 dark:text-slate-100">
         <option value="from_email">from email</option>
         <option value="from_domain">from domain</option>
@@ -612,7 +612,7 @@ function RuleForm({ businesses, onAdd }: { businesses: { id: string; name: strin
         <option value="subject_contains">subject has</option>
       </select>
       <input value={pattern} onChange={(e) => setPattern(e.target.value)} placeholder="pattern"
-        className="col-span-2 border border-slate-300 dark:border-slate-600 rounded-lg px-2 py-1.5 bg-white dark:bg-slate-800 dark:text-slate-100" />
+        className="col-span-1 sm:col-span-2 border border-slate-300 dark:border-slate-600 rounded-lg px-2 py-1.5 bg-white dark:bg-slate-800 dark:text-slate-100" />
       <select value={businessId} onChange={(e) => setBusinessId(e.target.value)} className="border border-slate-300 dark:border-slate-600 rounded-lg px-2 py-1.5 bg-white dark:bg-slate-800 dark:text-slate-100">
         <option value="">business…</option>
         {businesses.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
@@ -629,7 +629,7 @@ function RuleForm({ businesses, onAdd }: { businesses: { id: string; name: strin
         <option value="fyi">fyi</option>
         <option value="suppress">suppress</option>
       </select>
-      <button className="col-span-6 bg-slate-800 text-white rounded-lg py-1.5">Add rule</button>
+      <button className="col-span-2 sm:col-span-6 bg-slate-800 text-white rounded-lg py-1.5">Add rule</button>
     </form>
   );
 }

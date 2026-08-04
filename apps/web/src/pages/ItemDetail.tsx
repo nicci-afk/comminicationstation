@@ -272,7 +272,7 @@ export default function ItemDetail() {
       : recatBusiness !== item.business_id);
 
   return (
-    <div className="max-w-5xl mx-auto p-6 grid grid-cols-[1fr_340px] gap-6">
+    <div className="max-w-5xl mx-auto p-3 sm:p-6 grid grid-cols-1 sm:grid-cols-[1fr_340px] gap-4 sm:gap-6">
       <div className="min-w-0">
         <button onClick={() => nav(-1)} className="flex items-center gap-1 text-sm text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200">
           <ArrowLeft className="w-4 h-4" /> Back
@@ -298,6 +298,7 @@ export default function ItemDetail() {
             <textarea
               value={smsText}
               onChange={(e) => setSmsText(e.target.value)}
+              onFocus={(e) => e.currentTarget.scrollIntoView({ behavior: "smooth", block: "nearest" })}
               placeholder={`Reply by ${item.channel === "whatsapp" ? "WhatsApp" : "text"}…`}
               className="w-full text-sm border-0 focus:outline-none resize-none bg-transparent dark:text-slate-100 dark:placeholder-slate-500"
               rows={3}
@@ -323,6 +324,7 @@ export default function ItemDetail() {
             <textarea
               value={emailText}
               onChange={(e) => setEmailText(e.target.value)}
+              onFocus={(e) => e.currentTarget.scrollIntoView({ behavior: "smooth", block: "nearest" })}
               placeholder="Write your reply…"
               className="w-full text-sm border-0 focus:outline-none resize-none bg-transparent dark:text-slate-100 dark:placeholder-slate-500"
               rows={5}
