@@ -186,7 +186,7 @@ export default async function handler(req: Request): Promise<Response> {
           status: "active",
           comm_artifact_id: artifact.id,
           allowed_zone: allowedZone,
-          drift_status: "stable",
+          drift_status: "none",
           re_analysis_recommended: false,
         });
 
