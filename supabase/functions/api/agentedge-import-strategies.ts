@@ -152,13 +152,31 @@ export default async function handler(req: Request): Promise<Response> {
       const allowedZone = (profileConfirmed || brief.disc_primary) ? "green" : "yellow";
 
       try {
+        // Create pipeline_run (required parent for pipeline_artifacts FK)
+        const { data: run, error: runErr } = await db
+          .from("pipeline_runs")
+          .insert({
+            user_id: userId,
+            contact_id: contactId,
+            analyze_request: { _source: "agentedge_migration" },
+            trigger_reason: "manual",
+            status: "complete",
+            current_stage: 3,
+            started_at: new Date().toISOString(),
+            finished_at: new Date().toISOString(),
+          })
+          .select("id")
+          .single();
+
+        if (runErr) throw new Error(runErr.message);
+
         // Create pipeline_artifact (stage 3 = comm strategy)
         const { data: artifact, error: artErr } = await db
           .from("pipeline_artifacts")
           .insert({
             user_id: userId,
             contact_id: contactId,
-            run_id: crypto.randomUUID(),
+            run_id: run.id,
             stage: 3,
             prompt_id: "agentedge_migration_v1",
             input_schema_version: "agentedge_migration_v1",
