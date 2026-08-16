@@ -28,6 +28,57 @@ import { CommOutput } from "./_shared/schemas/comm.ts";
 import { qcComm, qcPerplexity, qcPersona, QcResult } from "./_shared/schemas/qc.ts";
 
 const DEFAULT_MODELS = { stage1: "sonar-pro", stage2: "gpt-5.1", stage3: "claude-opus-4-8" };
+
+// Perplexity's sonar-pro returns semantically correct data but with slightly
+// different field names and shapes than our strict schema expects. Normalize
+// before validation so we don't reject valid runs on cosmetic mismatches.
+function mapCoverageLevel(level: unknown): "covered" | "partial" | "missing" {
+  const s = String(level ?? "").toLowerCase();
+  if (s === "high" || s === "full" || s === "covered") return "covered";
+  if (s === "none" || s === "missing" || s === "not_found") return "missing";
+  return "partial"; // moderate, low, partial, unknown → partial
+}
+
+function normalizePerplexityOutput(raw: unknown, sourceProfileId: string): unknown {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return raw;
+  const out = { ...(raw as Record<string, unknown>) };
+
+  // Inject required literals the model sometimes omits.
+  if (!out.output_schema_version) out.output_schema_version = "perplexity_output_v1";
+  if (!out.source_profile_id) out.source_profile_id = sourceProfileId;
+
+  // Normalize coverage_map: model returns object-of-domains OR array with
+  // {domain, coverage_level} instead of {signal_category, status}.
+  let cm = out.coverage_map;
+  if (cm && !Array.isArray(cm) && typeof cm === "object") {
+    // {domains: {key: {...}}} or flat {key: {...}}
+    const inner = (cm as Record<string, unknown>).domains ?? cm;
+    if (typeof inner === "object" && !Array.isArray(inner)) {
+      cm = Object.entries(inner as Record<string, unknown>).map(([key, val]) => {
+        const v = (val ?? {}) as Record<string, unknown>;
+        return { signal_category: key, status: mapCoverageLevel(v.coverage_level ?? v.status), notes: String(v.notes ?? "") };
+      });
+    }
+  } else if (Array.isArray(cm)) {
+    cm = (cm as unknown[]).map((item) => {
+      const v = (item ?? {}) as Record<string, unknown>;
+      return {
+        signal_category: String(v.signal_category ?? v.domain ?? v.category ?? ""),
+        status: mapCoverageLevel(v.status && !["covered","partial","missing"].includes(String(v.status)) ? v.coverage_level : (v.status ?? v.coverage_level)),
+        notes: String(v.notes ?? ""),
+      };
+    });
+  }
+  out.coverage_map = cm;
+
+  // Normalize qc_status: model often returns a string instead of {passed, fail_reasons}.
+  if (typeof out.qc_status === "string") {
+    const s = (out.qc_status as string).toLowerCase();
+    out.qc_status = { passed: s === "passed" || s === "pass" || s === "ok", fail_reasons: [] };
+  }
+
+  return out;
+}
 const ZONE_RANK: Record<string, number> = { green: 0, yellow: 1, red: 2 };
 
 interface RunRow {
@@ -187,7 +238,8 @@ export default async function handler(req: Request): Promise<Response> {
           (user) => callPerplexity({ apiKey, model: m.stage1, system: PERPLEXITY_SYSTEM, user, maxTokens: 6000 }),
           input,
           (parsed) => {
-            const z = PerplexityOutput.safeParse(parsed);
+            const normalized = normalizePerplexityOutput(parsed, run.contact_id);
+            const z = PerplexityOutput.safeParse(normalized);
             if (!z.success) {
               return {
                 problems: z.error.issues.slice(0, 20).map((i) => `${i.path.join(".")}: ${i.message}`),
