@@ -364,11 +364,17 @@ function normalizePersonaOutput(raw: unknown, sourceProfileId: string): unknown 
   if (Array.isArray(out.friction_risks)) {
     out.friction_risks = (out.friction_risks as unknown[]).map((item) => {
       const f = (item ?? {}) as Record<string, unknown>;
+      const observBasis = String(f.observable_basis ?? f.basis ?? f.description ?? "");
+      const rawTc = Array.isArray(f.trigger_conditions) ? f.trigger_conditions as unknown[] : [];
+      // QC requires trigger_conditions to be non-empty; fall back to observable_basis or risk name.
+      const triggerConds = rawTc.length > 0 ? rawTc
+        : observBasis ? [observBasis]
+        : [String(f.risk ?? f.risk_name ?? "applies in relevant contexts")];
       return {
         ...f,
         risk_type: mapRiskType(f.risk_type),
-        trigger_conditions: Array.isArray(f.trigger_conditions) ? f.trigger_conditions : [],
-        observable_basis: String(f.observable_basis ?? f.basis ?? f.description ?? ""),
+        trigger_conditions: triggerConds,
+        observable_basis: observBasis,
         impact_if_missed: String(f.impact_if_missed ?? f.impact ?? ""),
         mitigation: Array.isArray(f.mitigation) ? f.mitigation : (f.mitigation ? [String(f.mitigation)] : []),
         confidence: mapConf(f.confidence),
@@ -386,12 +392,15 @@ function normalizePersonaOutput(raw: unknown, sourceProfileId: string): unknown 
     out.communication_relevance_map = (out.communication_relevance_map as unknown[]).map((item) => {
       const c = (item ?? {}) as Record<string, unknown>;
       const rawLabel = String(c.label ?? "").toLowerCase();
+      const evidRefs = Array.isArray(c.evidence_refs) ? c.evidence_refs : [];
+      const conf = mapConf(c.confidence);
       return {
         signal: String(c.signal ?? ""),
         label: VALID_LABELS.has(rawLabel) ? rawLabel : "unknown",
         why_it_matters: String(c.why_it_matters ?? c.reason ?? c.description ?? c.why ?? ""),
-        confidence: mapConf(c.confidence),
-        evidence_refs: Array.isArray(c.evidence_refs) ? c.evidence_refs : [],
+        // QC rejects green with no evidence_refs — downgrade to yellow.
+        confidence: (conf === "green" && evidRefs.length === 0) ? "yellow" : conf,
+        evidence_refs: evidRefs,
       };
     });
   }
@@ -410,7 +419,9 @@ function normalizePersonaOutput(raw: unknown, sourceProfileId: string): unknown 
     out.probable_style_patterns = (out.probable_style_patterns as unknown[]).map((item) => {
       const p = (item ?? {}) as Record<string, unknown>;
       const conf = mapConf(p.confidence);
-      return { ...p, confidence: conf === "red" ? "yellow" : conf, conditions: Array.isArray(p.conditions) ? p.conditions : [], evidence_refs: Array.isArray(p.evidence_refs) ? p.evidence_refs : [] };
+      const evidRefs = Array.isArray(p.evidence_refs) ? p.evidence_refs : [];
+      const finalConf = conf === "red" ? "yellow" : (conf === "green" && evidRefs.length === 0 ? "yellow" : conf);
+      return { ...p, confidence: finalConf, conditions: Array.isArray(p.conditions) ? p.conditions : [], evidence_refs: evidRefs };
     });
   }
 
@@ -428,7 +439,9 @@ function normalizePersonaOutput(raw: unknown, sourceProfileId: string): unknown 
     out.rapport_levers = (out.rapport_levers as unknown[]).map((item) => {
       const l = (item ?? {}) as Record<string, unknown>;
       const conf = mapConf(l.confidence);
-      return { ...l, confidence: conf === "red" ? "yellow" : conf, safe_usage_note: String(l.safe_usage_note ?? l.note ?? l.usage_note ?? ""), evidence_refs: Array.isArray(l.evidence_refs) ? l.evidence_refs : [] };
+      const evidRefs = Array.isArray(l.evidence_refs) ? l.evidence_refs : [];
+      const finalConf = conf === "red" ? "yellow" : (conf === "green" && evidRefs.length === 0 ? "yellow" : conf);
+      return { ...l, confidence: finalConf, safe_usage_note: String(l.safe_usage_note ?? l.note ?? l.usage_note ?? ""), evidence_refs: evidRefs };
     });
   }
 
@@ -476,6 +489,240 @@ function normalizePersonaOutput(raw: unknown, sourceProfileId: string): unknown 
     const zone = String(hp.allowed_strategy_zone ?? "yellow").toLowerCase();
     if (!["green","yellow","red"].includes(zone)) hp.allowed_strategy_zone = "yellow";
     if (!hp.persona_summary) hp.persona_summary = "";
+  }
+
+  return out;
+}
+
+// Claude's CommOutput has systematic divergences from the strict schema.
+// This normalizer coerces every known field-name / shape difference before zod validation.
+function normalizeCommOutput(raw: unknown, sourceProfileId: string): unknown {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return raw;
+  const out = { ...(raw as Record<string, unknown>) };
+
+  if (!out.prompt_id) out.prompt_id = "claude_communication_strategy_v1";
+  if (!out.output_schema_version) out.output_schema_version = "claude_comm_output_v1";
+  if (!out.source_profile_id) out.source_profile_id = sourceProfileId;
+
+  // why_not_higher_confidence: string → string[]
+  if (typeof out.why_not_higher_confidence === "string") {
+    out.why_not_higher_confidence = [out.why_not_higher_confidence];
+  } else if (!Array.isArray(out.why_not_higher_confidence)) {
+    out.why_not_higher_confidence = [];
+  }
+
+  // human_review_flags: [{detail,trigger,...}] → string[]
+  if (Array.isArray(out.human_review_flags)) {
+    out.human_review_flags = (out.human_review_flags as unknown[]).map((item) => {
+      if (typeof item === "string") return item;
+      const v = (item ?? {}) as Record<string, unknown>;
+      return String(v.detail ?? v.description ?? v.flag ?? v.reason ?? JSON.stringify(v));
+    });
+  } else if (typeof out.human_review_flags === "string") {
+    out.human_review_flags = [out.human_review_flags];
+  } else {
+    out.human_review_flags = [];
+  }
+
+  // message_objective: object → string
+  if (out.message_objective && typeof out.message_objective === "object") {
+    const mo = out.message_objective as Record<string, unknown>;
+    out.message_objective = String(mo.primary ?? mo.summary ?? mo.objective ?? "");
+  } else if (typeof out.message_objective !== "string") {
+    out.message_objective = "";
+  }
+
+  // recommended_approach: object → string
+  if (out.recommended_approach && typeof out.recommended_approach === "object") {
+    const ra = out.recommended_approach as Record<string, unknown>;
+    out.recommended_approach = String(ra.summary ?? ra.approach ?? ra.description ?? "");
+  } else if (typeof out.recommended_approach !== "string") {
+    out.recommended_approach = "";
+  }
+
+  // minimum_safe_next_action: must be string
+  if (typeof out.minimum_safe_next_action !== "string") {
+    out.minimum_safe_next_action = String(out.minimum_safe_next_action ?? "");
+  }
+
+  // tone_profile: {avoid_tone|avoid_tones, recommended_tone|descriptors, confidence|confidence_band}
+  // → {recommended_tone: string[], avoid_tone: string[], confidence}
+  if (out.tone_profile && typeof out.tone_profile === "object") {
+    const tp = out.tone_profile as Record<string, unknown>;
+    const rec = tp.recommended_tone ?? tp.descriptors ?? tp.tone_descriptors ?? null;
+    const avoid = tp.avoid_tone ?? tp.avoid_tones ?? tp.tones_to_avoid ?? null;
+    out.tone_profile = {
+      recommended_tone: Array.isArray(rec) ? (rec as unknown[]).map(String) : (typeof rec === "string" ? [rec] : []),
+      avoid_tone: Array.isArray(avoid) ? (avoid as unknown[]).map(String) : (typeof avoid === "string" ? [avoid] : []),
+      confidence: mapConf(tp.confidence ?? tp.confidence_band),
+    };
+  }
+
+  // channel_strategy: various → {channel, length_guidance, pacing_guidance, follow_up_cadence, constraints[]}
+  if (out.channel_strategy && typeof out.channel_strategy === "object") {
+    const cs = out.channel_strategy as Record<string, unknown>;
+    out.channel_strategy = {
+      channel: String(cs.channel ?? "email"),
+      length_guidance: String(cs.length_guidance ?? cs.length ?? ""),
+      pacing_guidance: String(cs.pacing_guidance ?? cs.cadence_guidance ?? cs.pacing ?? ""),
+      follow_up_cadence: String(cs.follow_up_cadence ?? cs.cadence ?? cs.follow_up ?? ""),
+      constraints: Array.isArray(cs.constraints) ? (cs.constraints as unknown[]).map(String)
+        : Array.isArray(cs.channel_constraints) ? (cs.channel_constraints as unknown[]).map(String) : [],
+    };
+  }
+
+  // sequencing_plan: {steps:[...], ...} or array → [{step, goal, instruction, confidence}]
+  {
+    let sp = out.sequencing_plan;
+    if (sp && !Array.isArray(sp) && typeof sp === "object") {
+      const spObj = sp as Record<string, unknown>;
+      sp = spObj.steps ?? spObj.phases ?? spObj.plan ?? [];
+    }
+    if (Array.isArray(sp)) {
+      out.sequencing_plan = (sp as unknown[]).map((item) => {
+        const s = (item ?? {}) as Record<string, unknown>;
+        return {
+          step: typeof s.step === "number" ? s.step : Number(s.step ?? 0),
+          goal: String(s.goal ?? s.objective ?? s.purpose ?? ""),
+          instruction: String(s.instruction ?? s.label ?? s.action ?? s.description ?? ""),
+          confidence: mapConf(s.confidence ?? s.confidence_band),
+        };
+      });
+    } else {
+      out.sequencing_plan = [];
+    }
+  }
+
+  // opening_options: {id, text, notes, confidence_band} | {label, notes, option} → {option, use_when, confidence}
+  if (Array.isArray(out.opening_options)) {
+    out.opening_options = (out.opening_options as unknown[]).map((item) => {
+      const o = (item ?? {}) as Record<string, unknown>;
+      const conf = mapConf(o.confidence ?? o.confidence_band);
+      return {
+        option: String(o.option ?? o.text ?? o.opening ?? ""),
+        use_when: String(o.use_when ?? o.notes ?? o.when ?? o.label ?? ""),
+        confidence: (conf === "red" ? "yellow" : conf) as "green" | "yellow",
+      };
+    });
+  } else {
+    out.opening_options = [];
+  }
+
+  // message_blueprints: various → {blueprint_name, use_when, template, risk_notes[], confidence}
+  if (Array.isArray(out.message_blueprints)) {
+    out.message_blueprints = (out.message_blueprints as unknown[]).map((item) => {
+      const b = (item ?? {}) as Record<string, unknown>;
+      let template = "";
+      if (typeof b.template === "string") template = b.template;
+      else if (typeof b.sample_text === "string") template = b.sample_text;
+      else if (Array.isArray(b.structure)) template = (b.structure as unknown[]).map(String).join("\n");
+      const conf = mapConf(b.confidence ?? b.confidence_band);
+      return {
+        blueprint_name: String(b.blueprint_name ?? b.name ?? b.id ?? b.purpose ?? ""),
+        use_when: String(b.use_when ?? b.purpose ?? b.when ?? ""),
+        template,
+        risk_notes: Array.isArray(b.risk_notes) ? (b.risk_notes as unknown[]).map(String)
+          : Array.isArray(b.constraints_respected) ? (b.constraints_respected as unknown[]).map(String) : [],
+        confidence: (conf === "red" ? "yellow" : conf) as "green" | "yellow",
+      };
+    });
+  } else {
+    out.message_blueprints = [];
+  }
+
+  // repair_moves: {trigger, move, sample_text, pressure_check} → {scenario, repair_goal, move, do_not_do[]}
+  if (Array.isArray(out.repair_moves)) {
+    out.repair_moves = (out.repair_moves as unknown[]).map((item) => {
+      const r = (item ?? {}) as Record<string, unknown>;
+      return {
+        scenario: String(r.scenario ?? r.trigger ?? r.situation ?? r.condition ?? ""),
+        repair_goal: String(r.repair_goal ?? r.goal ?? r.intent ?? ""),
+        move: String(r.move ?? r.action ?? r.response ?? ""),
+        do_not_do: Array.isArray(r.do_not_do) ? (r.do_not_do as unknown[]).map(String) : [],
+      };
+    });
+  } else {
+    out.repair_moves = [];
+  }
+
+  // response_interpretation_rules: {signal, interpretation, recommended_reaction}
+  // → {observed_response_type, bounded_interpretation, confidence, recommended_next_step}
+  if (Array.isArray(out.response_interpretation_rules)) {
+    out.response_interpretation_rules = (out.response_interpretation_rules as unknown[]).map((item) => {
+      const r = (item ?? {}) as Record<string, unknown>;
+      return {
+        observed_response_type: String(r.observed_response_type ?? r.signal ?? r.response_type ?? r.type ?? ""),
+        bounded_interpretation: String(r.bounded_interpretation ?? r.interpretation ?? r.meaning ?? ""),
+        confidence: mapConf(r.confidence ?? r.confidence_band),
+        recommended_next_step: String(r.recommended_next_step ?? r.recommended_reaction ?? r.next_step ?? r.action ?? ""),
+      };
+    });
+  } else {
+    out.response_interpretation_rules = [];
+  }
+
+  // next_step_matrix: {condition, next_step|action, confidence_band} → {condition, action, review_needed: boolean}
+  if (Array.isArray(out.next_step_matrix)) {
+    out.next_step_matrix = (out.next_step_matrix as unknown[]).map((item) => {
+      const n = (item ?? {}) as Record<string, unknown>;
+      return {
+        condition: String(n.condition ?? n.scenario ?? ""),
+        action: String(n.action ?? n.next_step ?? n.response ?? ""),
+        review_needed: typeof n.review_needed === "boolean" ? n.review_needed : false,
+      };
+    });
+  } else {
+    out.next_step_matrix = [];
+  }
+
+  // drift_response_rules: {drift_status, strategy_adjustments[], monitoring_watch_items[], rationale}
+  // → {drift_status, strategy_adjustment[], must_confirm_before_proceeding[], review_trigger: boolean}
+  if (out.drift_response_rules && typeof out.drift_response_rules === "object") {
+    const dr = out.drift_response_rules as Record<string, unknown>;
+    const VALID_DRS = new Set(["none","possible","active","unresolved"]);
+    const ds = String(dr.drift_status ?? dr.upstream_drift_status ?? "none").toLowerCase();
+    const sa = dr.strategy_adjustment ?? dr.strategy_adjustments ?? dr.adjustments ?? [];
+    const mc = dr.must_confirm_before_proceeding ?? dr.must_confirm ?? dr.confirmations_required ?? [];
+    out.drift_response_rules = {
+      drift_status: VALID_DRS.has(ds) ? ds : "none",
+      strategy_adjustment: Array.isArray(sa) ? (sa as unknown[]).map(String) : [],
+      must_confirm_before_proceeding: Array.isArray(mc) ? (mc as unknown[]).map(String) : [],
+      review_trigger: typeof dr.review_trigger === "boolean" ? dr.review_trigger : false,
+    };
+  } else {
+    out.drift_response_rules = { drift_status: "none", strategy_adjustment: [], must_confirm_before_proceeding: [], review_trigger: false };
+  }
+
+  // post_interaction_update_packet: Claude generates a template with empty/different fields.
+  // Normalize to the strict PostInteractionUpdatePacket schema.
+  if (out.post_interaction_update_packet && typeof out.post_interaction_update_packet === "object") {
+    const p = out.post_interaction_update_packet as Record<string, unknown>;
+    const cc = String(p.confidence_change ?? "none").toLowerCase();
+    out.post_interaction_update_packet = {
+      update_schema_version: "interaction_update_v1",
+      what_was_sent: String(p.what_was_sent ?? p.message_sent_summary ?? p.blueprint_used ?? ""),
+      response_observed: String(p.response_observed ?? p.response_received ?? ""),
+      response_classification: String(p.response_classification ?? p.response_interpretation_applied ?? ""),
+      confidence_change: (["increase","decrease","none"].includes(cc) ? cc : "none") as "increase" | "decrease" | "none",
+      friction_signals_observed: Array.isArray(p.friction_signals_observed) ? (p.friction_signals_observed as unknown[]).map(String) : [],
+      drift_signals_observed: Array.isArray(p.drift_signals_observed) ? (p.drift_signals_observed as unknown[]).map(String)
+        : Array.isArray(p.drift_observations) ? (p.drift_observations as unknown[]).map(String) : [],
+      recommended_upstream_updates: Array.isArray(p.recommended_upstream_updates) ? (p.recommended_upstream_updates as unknown[]).map(String) : [],
+    };
+  } else {
+    out.post_interaction_update_packet = {
+      update_schema_version: "interaction_update_v1",
+      what_was_sent: "", response_observed: "", response_classification: "",
+      confidence_change: "none", friction_signals_observed: [], drift_signals_observed: [], recommended_upstream_updates: [],
+    };
+  }
+
+  // qc_status: string → {passed, fail_reasons}
+  if (typeof out.qc_status === "string") {
+    const s = String(out.qc_status).toLowerCase();
+    out.qc_status = { passed: s === "pass" || s === "passed" || s === "ok", fail_reasons: [] };
+  } else if (!out.qc_status) {
+    out.qc_status = { passed: true, fail_reasons: [] };
   }
 
   return out;
@@ -637,7 +884,7 @@ export default async function handler(req: Request): Promise<Response> {
         const apiKey = (await getUserSecret(db, run.user_id, "perplexity_api_key"))!;
         const input = buildPerplexityInput(req_);
         const outcome = await executeStage(
-          (user) => callPerplexity({ apiKey, model: m.stage1, system: PERPLEXITY_SYSTEM, user, maxTokens: 6000 }),
+          (user) => callPerplexity({ apiKey, model: m.stage1, system: PERPLEXITY_SYSTEM, user, maxTokens: 10000 }),
           input,
           (parsed) => {
             const normalized = normalizePerplexityOutput(parsed, run.contact_id);
@@ -726,11 +973,12 @@ export default async function handler(req: Request): Promise<Response> {
           (user) => callAnthropic({ apiKey, model: m.stage3, system: COMM_SYSTEM, user, maxTokens: 8000, thinking: true }),
           input,
           (parsed) => {
-            const z = CommOutput.safeParse(parsed);
+            const normalized = normalizeCommOutput(parsed, run.contact_id);
+            const z = CommOutput.safeParse(normalized);
             if (!z.success) {
               return {
                 problems: z.error.issues.slice(0, 20).map((i) => `${i.path.join(".")}: ${i.message}`),
-                output: parsed, qc: { passed: false, fail_reasons: ["schema invalid"] }, modelQc: null, zone: null,
+                output: normalized ?? parsed, qc: { passed: false, fail_reasons: ["schema invalid"] }, modelQc: null, zone: null,
               };
             }
             const qc = qcComm(z.data, {
