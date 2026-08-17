@@ -387,17 +387,18 @@ function normalizePersonaOutput(raw: unknown, sourceProfileId: string): unknown 
   out.drift_tracking = normalizeDrift(out.drift_tracking);
 
   // communication_relevance_map: {signal, relevance, confidence} → {signal, label, why_it_matters, confidence, evidence_refs[]}
+  // GPT sometimes uses {signal_label, relevance} instead of {signal, why_it_matters}.
   const VALID_LABELS = new Set(["fact","pattern","hypothesis","unknown"]);
   if (Array.isArray(out.communication_relevance_map)) {
     out.communication_relevance_map = (out.communication_relevance_map as unknown[]).map((item) => {
       const c = (item ?? {}) as Record<string, unknown>;
       const rawLabel = String(c.label ?? "").toLowerCase();
       const evidRefs = Array.isArray(c.evidence_refs) ? c.evidence_refs : [];
-      const conf = mapConf(c.confidence);
+      const conf = mapConf(c.confidence ?? c.band);
       return {
-        signal: String(c.signal ?? ""),
+        signal: String(c.signal ?? c.signal_label ?? ""),
         label: VALID_LABELS.has(rawLabel) ? rawLabel : "unknown",
-        why_it_matters: String(c.why_it_matters ?? c.reason ?? c.description ?? c.why ?? ""),
+        why_it_matters: String(c.why_it_matters ?? c.relevance ?? c.reason ?? c.description ?? c.why ?? ""),
         // QC rejects green with no evidence_refs — downgrade to yellow.
         confidence: (conf === "green" && evidRefs.length === 0) ? "yellow" : conf,
         evidence_refs: evidRefs,
@@ -435,13 +436,14 @@ function normalizePersonaOutput(raw: unknown, sourceProfileId: string): unknown 
   }
 
   // rapport_levers[].confidence: schema only allows "green"|"yellow"
+  // GPT uses band instead of confidence, description instead of safe_usage_note.
   if (Array.isArray(out.rapport_levers)) {
     out.rapport_levers = (out.rapport_levers as unknown[]).map((item) => {
       const l = (item ?? {}) as Record<string, unknown>;
-      const conf = mapConf(l.confidence);
+      const conf = mapConf(l.confidence ?? l.band);
       const evidRefs = Array.isArray(l.evidence_refs) ? l.evidence_refs : [];
       const finalConf = conf === "red" ? "yellow" : (conf === "green" && evidRefs.length === 0 ? "yellow" : conf);
-      return { ...l, confidence: finalConf, safe_usage_note: String(l.safe_usage_note ?? l.note ?? l.usage_note ?? ""), evidence_refs: evidRefs };
+      return { ...l, confidence: finalConf, safe_usage_note: String(l.safe_usage_note ?? l.note ?? l.usage_note ?? l.description ?? ""), evidence_refs: evidRefs };
     });
   }
 
@@ -454,7 +456,7 @@ function normalizePersonaOutput(raw: unknown, sourceProfileId: string): unknown 
       return {
         topic: String(c.topic ?? c.issue ?? c.area ?? ""),
         conflict_summary: String(c.conflict_summary ?? c.description ?? c.summary ?? c.conflict ?? ""),
-        operational_effect: String(c.operational_effect ?? c.impact ?? c.effect ?? ""),
+        operational_effect: String(c.operational_effect ?? c.operational_implication ?? c.impact ?? c.effect ?? ""),
       };
     }).filter((c) => c.topic || c.conflict_summary);
   }
@@ -481,8 +483,21 @@ function normalizePersonaOutput(raw: unknown, sourceProfileId: string): unknown 
   if (out.claude_handoff_packet && typeof out.claude_handoff_packet === "object") {
     const hp = out.claude_handoff_packet as Record<string, unknown>;
     if (!hp.handoff_version) hp.handoff_version = "claude_handoff_v1";
-    if (!Array.isArray(hp.top_friction_risks)) hp.top_friction_risks = [];
-    if (!Array.isArray(hp.top_rapport_levers)) hp.top_rapport_levers = [];
+    // top_friction_risks / top_rapport_levers: GPT often returns array-of-objects; schema wants string[].
+    if (!Array.isArray(hp.top_friction_risks)) {
+      hp.top_friction_risks = [];
+    } else {
+      hp.top_friction_risks = (hp.top_friction_risks as unknown[]).map((x) =>
+        typeof x === "string" ? x : String((x as Record<string, unknown>).risk ?? (x as Record<string, unknown>).label ?? JSON.stringify(x))
+      );
+    }
+    if (!Array.isArray(hp.top_rapport_levers)) {
+      hp.top_rapport_levers = [];
+    } else {
+      hp.top_rapport_levers = (hp.top_rapport_levers as unknown[]).map((x) =>
+        typeof x === "string" ? x : String((x as Record<string, unknown>).lever ?? (x as Record<string, unknown>).label ?? JSON.stringify(x))
+      );
+    }
     if (!Array.isArray(hp.message_constraints)) hp.message_constraints = [];
     if (!Array.isArray(hp.unknowns_that_matter)) hp.unknowns_that_matter = [];
     hp.drift_tracking = normalizeDrift(hp.drift_tracking);
