@@ -287,6 +287,199 @@ function normalizePerplexityOutput(raw: unknown, sourceProfileId: string): unkno
 
   return out;
 }
+
+// GPT-5.1's PersonaOutput has three systematic divergences from the strict schema:
+// 1. friction_risks[].risk_type uses invented enum values (e.g. "identity_and_positioning")
+// 2. drift_tracking uses {notes, drift_status:"not_assessed", observed_changes, potential_implications}
+//    instead of the required {drift_status, drift_window, drift_signals[], drift_impact[], recommended_response, requires_human_review}
+// 3. communication_relevance_map[] uses {signal, relevance, confidence} instead of
+//    {signal, label:enum, why_it_matters, confidence, evidence_refs[]}
+// This normalizer coerces all three (and minor nested-field variants) before Zod validation.
+function normalizePersonaOutput(raw: unknown, sourceProfileId: string): unknown {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return raw;
+  const out = { ...(raw as Record<string, unknown>) };
+
+  if (!out.prompt_id) out.prompt_id = "chatgpt_persona_strategy_v1";
+  if (!out.output_schema_version) out.output_schema_version = "chatgpt_persona_output_v1";
+  if (!out.source_profile_id) out.source_profile_id = sourceProfileId;
+
+  // friction_risks[].risk_type: map GPT-invented values to nearest valid enum member.
+  const VALID_RISK_TYPES = new Set([
+    "tone_mismatch","pacing_mismatch","ambiguity","overreach","credibility_loss",
+    "boundary_violation","inconsistency_trigger","channel_mismatch","timing_mismatch",
+  ]);
+  function mapRiskType(rt: unknown): string {
+    const s = String(rt ?? "").toLowerCase();
+    if (VALID_RISK_TYPES.has(s)) return s;
+    if (/credibil|background|expertise|identity|position/.test(s)) return "credibility_loss";
+    if (/time|timing|window|cadence|schedule/.test(s)) return "timing_mismatch";
+    if (/channel|medium|platform/.test(s)) return "channel_mismatch";
+    if (/overreach|intrusive|personal|sensitive|private/.test(s)) return "overreach";
+    if (/boundary|violation|limit/.test(s)) return "boundary_violation";
+    if (/inconsisten|contradict|conflict/.test(s)) return "inconsistency_trigger";
+    if (/pacing|speed|slow|fast/.test(s)) return "pacing_mismatch";
+    if (/tone|style|voice/.test(s)) return "tone_mismatch";
+    if (/message.fit|fit|relevance|match/.test(s)) return "tone_mismatch";
+    return "ambiguity";
+  }
+  if (Array.isArray(out.friction_risks)) {
+    out.friction_risks = (out.friction_risks as unknown[]).map((item) => {
+      const f = (item ?? {}) as Record<string, unknown>;
+      return {
+        ...f,
+        risk_type: mapRiskType(f.risk_type),
+        trigger_conditions: Array.isArray(f.trigger_conditions) ? f.trigger_conditions : [],
+        observable_basis: String(f.observable_basis ?? f.basis ?? f.description ?? ""),
+        impact_if_missed: String(f.impact_if_missed ?? f.impact ?? ""),
+        mitigation: Array.isArray(f.mitigation) ? f.mitigation : (f.mitigation ? [String(f.mitigation)] : []),
+        confidence: mapConf(f.confidence),
+        evidence_refs: Array.isArray(f.evidence_refs) ? f.evidence_refs : [],
+      };
+    });
+  }
+
+  // drift_tracking: normalize {not_assessed, observed_changes, notes, potential_implications}
+  // → required {drift_status, drift_window, drift_signals[], drift_impact[], recommended_response, requires_human_review}
+  const VALID_DRIFT_STATUSES = new Set(["none","possible","active","unresolved"]);
+  const VALID_DRIFT_RESPONSES = new Set(["hold","adapt","confirm","escalate"]);
+  if (!out.drift_tracking || Array.isArray(out.drift_tracking)) {
+    out.drift_tracking = { drift_status: "none", drift_window: "", drift_signals: [], drift_impact: [], recommended_response: "hold", requires_human_review: false };
+  } else if (typeof out.drift_tracking === "object") {
+    const dt = out.drift_tracking as Record<string, unknown>;
+    const rawStatus = String(dt.drift_status ?? "").toLowerCase();
+    if (!VALID_DRIFT_STATUSES.has(rawStatus)) dt.drift_status = "none";
+    if (!dt.drift_window) dt.drift_window = "";
+    if (!Array.isArray(dt.drift_signals)) {
+      const obs = Array.isArray(dt.observed_changes) ? dt.observed_changes as unknown[] : [];
+      dt.drift_signals = obs.map((item) => {
+        const v = (item ?? {}) as Record<string, unknown>;
+        const dir = String(v.direction ?? "").toLowerCase();
+        return {
+          signal: String(v.signal ?? v.description ?? v.change ?? String(item)),
+          direction: (["increase","decrease","shift","inconsistency"].includes(dir) ? dir : "shift"),
+          confidence: mapConf(v.confidence ?? "yellow"),
+          evidence_refs: Array.isArray(v.evidence_refs) ? v.evidence_refs : [],
+        };
+      });
+    }
+    if (!Array.isArray(dt.drift_impact)) {
+      const impl = dt.potential_implications;
+      const notes = dt.notes;
+      if (Array.isArray(impl) && impl.length > 0) {
+        dt.drift_impact = (impl as unknown[]).map(String);
+      } else if (typeof notes === "string" && notes) {
+        dt.drift_impact = [notes];
+      } else {
+        dt.drift_impact = [];
+      }
+    }
+    if (!dt.recommended_response || !VALID_DRIFT_RESPONSES.has(String(dt.recommended_response))) {
+      dt.recommended_response = "hold";
+    }
+    if (typeof dt.requires_human_review !== "boolean") dt.requires_human_review = false;
+  }
+
+  // communication_relevance_map: {signal, relevance, confidence} → {signal, label, why_it_matters, confidence, evidence_refs[]}
+  const VALID_LABELS = new Set(["fact","pattern","hypothesis","unknown"]);
+  if (Array.isArray(out.communication_relevance_map)) {
+    out.communication_relevance_map = (out.communication_relevance_map as unknown[]).map((item) => {
+      const c = (item ?? {}) as Record<string, unknown>;
+      const rawLabel = String(c.label ?? "").toLowerCase();
+      return {
+        signal: String(c.signal ?? ""),
+        label: VALID_LABELS.has(rawLabel) ? rawLabel : "unknown",
+        why_it_matters: String(c.why_it_matters ?? c.relevance ?? c.description ?? c.why ?? ""),
+        confidence: mapConf(c.confidence),
+        evidence_refs: Array.isArray(c.evidence_refs) ? c.evidence_refs : [],
+      };
+    });
+  }
+
+  // stable_preferences[].confidence: schema only allows "green"|"yellow" (cap red → yellow)
+  if (Array.isArray(out.stable_preferences)) {
+    out.stable_preferences = (out.stable_preferences as unknown[]).map((item) => {
+      const p = (item ?? {}) as Record<string, unknown>;
+      const conf = mapConf(p.confidence);
+      return { ...p, confidence: conf === "red" ? "yellow" : conf, basis: String(p.basis ?? p.description ?? ""), evidence_refs: Array.isArray(p.evidence_refs) ? p.evidence_refs : [] };
+    });
+  }
+
+  // probable_style_patterns[].confidence: schema only allows "green"|"yellow"
+  if (Array.isArray(out.probable_style_patterns)) {
+    out.probable_style_patterns = (out.probable_style_patterns as unknown[]).map((item) => {
+      const p = (item ?? {}) as Record<string, unknown>;
+      const conf = mapConf(p.confidence);
+      return { ...p, confidence: conf === "red" ? "yellow" : conf, conditions: Array.isArray(p.conditions) ? p.conditions : [], evidence_refs: Array.isArray(p.evidence_refs) ? p.evidence_refs : [] };
+    });
+  }
+
+  // motivator_hypotheses[].confidence: schema only allows "yellow"|"red" (cap green → yellow)
+  if (Array.isArray(out.motivator_hypotheses)) {
+    out.motivator_hypotheses = (out.motivator_hypotheses as unknown[]).map((item) => {
+      const h = (item ?? {}) as Record<string, unknown>;
+      const conf = mapConf(h.confidence);
+      return { ...h, confidence: conf === "green" ? "yellow" : conf, reason: String(h.reason ?? h.description ?? h.basis ?? ""), evidence_refs: Array.isArray(h.evidence_refs) ? h.evidence_refs : [] };
+    });
+  }
+
+  // rapport_levers[].confidence: schema only allows "green"|"yellow"
+  if (Array.isArray(out.rapport_levers)) {
+    out.rapport_levers = (out.rapport_levers as unknown[]).map((item) => {
+      const l = (item ?? {}) as Record<string, unknown>;
+      const conf = mapConf(l.confidence);
+      return { ...l, confidence: conf === "red" ? "yellow" : conf, safe_usage_note: String(l.safe_usage_note ?? l.note ?? l.usage_note ?? ""), evidence_refs: Array.isArray(l.evidence_refs) ? l.evidence_refs : [] };
+    });
+  }
+
+  // contradictions_to_watch: {topic, conflict_summary, operational_effect}
+  if (!Array.isArray(out.contradictions_to_watch)) {
+    out.contradictions_to_watch = [];
+  } else {
+    out.contradictions_to_watch = (out.contradictions_to_watch as unknown[]).map((item) => {
+      const c = (item ?? {}) as Record<string, unknown>;
+      return {
+        topic: String(c.topic ?? c.issue ?? c.area ?? ""),
+        conflict_summary: String(c.conflict_summary ?? c.description ?? c.summary ?? c.conflict ?? ""),
+        operational_effect: String(c.operational_effect ?? c.impact ?? c.effect ?? ""),
+      };
+    }).filter((c) => c.topic || c.conflict_summary);
+  }
+
+  // Ensure plain string arrays.
+  for (const field of ["do_not_assume","why_not_higher_confidence","green_actions","yellow_actions","red_actions","unknowns_that_matter"]) {
+    if (!Array.isArray(out[field])) out[field] = typeof out[field] === "string" ? [out[field]] : [];
+  }
+
+  // minimum_safe_next_action: must be string
+  if (typeof out.minimum_safe_next_action !== "string") {
+    out.minimum_safe_next_action = String(out.minimum_safe_next_action ?? "");
+  }
+
+  // qc_status: string → {passed, fail_reasons}
+  if (typeof out.qc_status === "string") {
+    const s = String(out.qc_status).toLowerCase();
+    out.qc_status = { passed: s === "passed" || s === "pass" || s === "ok", fail_reasons: [] };
+  } else if (!out.qc_status) {
+    out.qc_status = { passed: true, fail_reasons: [] };
+  }
+
+  // claude_handoff_packet: ensure required fields exist.
+  if (out.claude_handoff_packet && typeof out.claude_handoff_packet === "object") {
+    const hp = out.claude_handoff_packet as Record<string, unknown>;
+    if (!hp.handoff_version) hp.handoff_version = "claude_handoff_v1";
+    if (!Array.isArray(hp.top_friction_risks)) hp.top_friction_risks = [];
+    if (!Array.isArray(hp.top_rapport_levers)) hp.top_rapport_levers = [];
+    if (!Array.isArray(hp.message_constraints)) hp.message_constraints = [];
+    if (!Array.isArray(hp.unknowns_that_matter)) hp.unknowns_that_matter = [];
+    if (!hp.drift_tracking) hp.drift_tracking = {};
+    const zone = String(hp.allowed_strategy_zone ?? "yellow").toLowerCase();
+    if (!["green","yellow","red"].includes(zone)) hp.allowed_strategy_zone = "yellow";
+    if (!hp.persona_summary) hp.persona_summary = "";
+  }
+
+  return out;
+}
+
 const ZONE_RANK: Record<string, number> = { green: 0, yellow: 1, red: 2 };
 
 interface RunRow {
@@ -491,7 +684,8 @@ export default async function handler(req: Request): Promise<Response> {
           (user) => callOpenAI({ apiKey, model: m.stage2, system: PERSONA_SYSTEM, user, maxTokens: 6000 }),
           input,
           (parsed) => {
-            const z = PersonaOutput.safeParse(parsed);
+            const normalized = normalizePersonaOutput(parsed, run.contact_id);
+            const z = PersonaOutput.safeParse(normalized);
             if (!z.success) {
               return {
                 problems: z.error.issues.slice(0, 20).map((i) => `${i.path.join(".")}: ${i.message}`),
