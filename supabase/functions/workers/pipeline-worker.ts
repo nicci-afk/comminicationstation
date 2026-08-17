@@ -288,13 +288,52 @@ function normalizePerplexityOutput(raw: unknown, sourceProfileId: string): unkno
   return out;
 }
 
-// GPT-5.1's PersonaOutput has three systematic divergences from the strict schema:
-// 1. friction_risks[].risk_type uses invented enum values (e.g. "identity_and_positioning")
-// 2. drift_tracking uses {notes, drift_status:"not_assessed", observed_changes, potential_implications}
-//    instead of the required {drift_status, drift_window, drift_signals[], drift_impact[], recommended_response, requires_human_review}
-// 3. communication_relevance_map[] uses {signal, relevance, confidence} instead of
+// Normalize a drift_tracking object from any GPT variant to the required schema shape.
+// Used for both top-level drift_tracking and claude_handoff_packet.drift_tracking.
+function normalizeDrift(raw: unknown): Record<string, unknown> {
+  const VALID_DS = new Set(["none","possible","active","unresolved"]);
+  const VALID_DR = new Set(["hold","adapt","confirm","escalate"]);
+  if (!raw || Array.isArray(raw)) {
+    return { drift_status: "none", drift_window: "", drift_signals: [], drift_impact: [], recommended_response: "hold", requires_human_review: false };
+  }
+  const dt = { ...(raw as Record<string, unknown>) };
+  const rawStatus = String(dt.drift_status ?? "").toLowerCase();
+  if (!VALID_DS.has(rawStatus)) dt.drift_status = "none";
+  if (!dt.drift_window) dt.drift_window = "";
+  if (!Array.isArray(dt.drift_signals)) {
+    const obs = Array.isArray(dt.observed_changes) ? dt.observed_changes as unknown[] : [];
+    dt.drift_signals = obs.map((item) => {
+      const v = (item ?? {}) as Record<string, unknown>;
+      const dir = String(v.direction ?? "").toLowerCase();
+      return {
+        signal: String(v.signal ?? v.description ?? v.change ?? String(item)),
+        direction: (["increase","decrease","shift","inconsistency"].includes(dir) ? dir : "shift"),
+        confidence: mapConf(v.confidence ?? "yellow"),
+        evidence_refs: Array.isArray(v.evidence_refs) ? v.evidence_refs : [],
+      };
+    });
+  }
+  if (!Array.isArray(dt.drift_impact)) {
+    const impl = dt.potential_implications;
+    const notes = dt.notes;
+    dt.drift_impact = Array.isArray(impl) && (impl as unknown[]).length > 0
+      ? (impl as unknown[]).map(String)
+      : typeof notes === "string" && notes ? [notes] : [];
+  }
+  if (!dt.recommended_response || !VALID_DR.has(String(dt.recommended_response))) {
+    dt.recommended_response = "hold";
+  }
+  if (typeof dt.requires_human_review !== "boolean") dt.requires_human_review = false;
+  return dt;
+}
+
+// GPT-5.1's PersonaOutput has systematic divergences from the strict schema:
+// 1. friction_risks[].risk_type uses invented enum values
+// 2. drift_tracking uses {known_trends, drift_unknowns, possible_drifts} or other GPT variants
+// 3. communication_relevance_map[] uses {reason, signal, relevance} instead of
 //    {signal, label:enum, why_it_matters, confidence, evidence_refs[]}
-// This normalizer coerces all three (and minor nested-field variants) before Zod validation.
+// 4. claude_handoff_packet.drift_tracking uses the same GPT format and also needs normalization
+// This normalizer coerces all of the above before Zod validation.
 function normalizePersonaOutput(raw: unknown, sourceProfileId: string): unknown {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) return raw;
   const out = { ...(raw as Record<string, unknown>) };
@@ -338,46 +377,8 @@ function normalizePersonaOutput(raw: unknown, sourceProfileId: string): unknown 
     });
   }
 
-  // drift_tracking: normalize {not_assessed, observed_changes, notes, potential_implications}
-  // → required {drift_status, drift_window, drift_signals[], drift_impact[], recommended_response, requires_human_review}
-  const VALID_DRIFT_STATUSES = new Set(["none","possible","active","unresolved"]);
-  const VALID_DRIFT_RESPONSES = new Set(["hold","adapt","confirm","escalate"]);
-  if (!out.drift_tracking || Array.isArray(out.drift_tracking)) {
-    out.drift_tracking = { drift_status: "none", drift_window: "", drift_signals: [], drift_impact: [], recommended_response: "hold", requires_human_review: false };
-  } else if (typeof out.drift_tracking === "object") {
-    const dt = out.drift_tracking as Record<string, unknown>;
-    const rawStatus = String(dt.drift_status ?? "").toLowerCase();
-    if (!VALID_DRIFT_STATUSES.has(rawStatus)) dt.drift_status = "none";
-    if (!dt.drift_window) dt.drift_window = "";
-    if (!Array.isArray(dt.drift_signals)) {
-      const obs = Array.isArray(dt.observed_changes) ? dt.observed_changes as unknown[] : [];
-      dt.drift_signals = obs.map((item) => {
-        const v = (item ?? {}) as Record<string, unknown>;
-        const dir = String(v.direction ?? "").toLowerCase();
-        return {
-          signal: String(v.signal ?? v.description ?? v.change ?? String(item)),
-          direction: (["increase","decrease","shift","inconsistency"].includes(dir) ? dir : "shift"),
-          confidence: mapConf(v.confidence ?? "yellow"),
-          evidence_refs: Array.isArray(v.evidence_refs) ? v.evidence_refs : [],
-        };
-      });
-    }
-    if (!Array.isArray(dt.drift_impact)) {
-      const impl = dt.potential_implications;
-      const notes = dt.notes;
-      if (Array.isArray(impl) && impl.length > 0) {
-        dt.drift_impact = (impl as unknown[]).map(String);
-      } else if (typeof notes === "string" && notes) {
-        dt.drift_impact = [notes];
-      } else {
-        dt.drift_impact = [];
-      }
-    }
-    if (!dt.recommended_response || !VALID_DRIFT_RESPONSES.has(String(dt.recommended_response))) {
-      dt.recommended_response = "hold";
-    }
-    if (typeof dt.requires_human_review !== "boolean") dt.requires_human_review = false;
-  }
+  // drift_tracking: normalize any GPT variant → required schema shape.
+  out.drift_tracking = normalizeDrift(out.drift_tracking);
 
   // communication_relevance_map: {signal, relevance, confidence} → {signal, label, why_it_matters, confidence, evidence_refs[]}
   const VALID_LABELS = new Set(["fact","pattern","hypothesis","unknown"]);
@@ -388,7 +389,7 @@ function normalizePersonaOutput(raw: unknown, sourceProfileId: string): unknown 
       return {
         signal: String(c.signal ?? ""),
         label: VALID_LABELS.has(rawLabel) ? rawLabel : "unknown",
-        why_it_matters: String(c.why_it_matters ?? c.relevance ?? c.description ?? c.why ?? ""),
+        why_it_matters: String(c.why_it_matters ?? c.reason ?? c.description ?? c.why ?? ""),
         confidence: mapConf(c.confidence),
         evidence_refs: Array.isArray(c.evidence_refs) ? c.evidence_refs : [],
       };
@@ -471,7 +472,7 @@ function normalizePersonaOutput(raw: unknown, sourceProfileId: string): unknown 
     if (!Array.isArray(hp.top_rapport_levers)) hp.top_rapport_levers = [];
     if (!Array.isArray(hp.message_constraints)) hp.message_constraints = [];
     if (!Array.isArray(hp.unknowns_that_matter)) hp.unknowns_that_matter = [];
-    if (!hp.drift_tracking) hp.drift_tracking = {};
+    hp.drift_tracking = normalizeDrift(hp.drift_tracking);
     const zone = String(hp.allowed_strategy_zone ?? "yellow").toLowerCase();
     if (!["green","yellow","red"].includes(zone)) hp.allowed_strategy_zone = "yellow";
     if (!hp.persona_summary) hp.persona_summary = "";
@@ -681,7 +682,7 @@ export default async function handler(req: Request): Promise<Response> {
         };
         const input = buildPersonaInput(req_, handoff, capsule);
         const outcome = await executeStage(
-          (user) => callOpenAI({ apiKey, model: m.stage2, system: PERSONA_SYSTEM, user, maxTokens: 6000 }),
+          (user) => callOpenAI({ apiKey, model: m.stage2, system: PERSONA_SYSTEM, user, maxTokens: 16000 }),
           input,
           (parsed) => {
             const normalized = normalizePersonaOutput(parsed, run.contact_id);
