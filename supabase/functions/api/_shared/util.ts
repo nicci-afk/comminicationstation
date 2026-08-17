@@ -105,6 +105,19 @@ export async function requireWorkerAuth(
   db: SupabaseClient,
 ): Promise<void> {
   const presented = req.headers.get("x-worker-secret") ?? "";
+  // Fast path 1: dedicated WORKER_SECRET env var (set via Supabase secrets management).
+  const envSecret = Deno.env.get("WORKER_SECRET");
+  if (envSecret) {
+    if (presented !== envSecret) throw new HttpError(403, "bad worker secret");
+    return;
+  }
+  // Fast path 2: anon key — Supabase auto-injects SUPABASE_ANON_KEY so no DB
+  // calls needed. poke_worker sends v_anon as x-worker-secret when WORKER_SECRET
+  // is not yet configured as a function secret.
+  const anonKey = Deno.env.get("SUPABASE_ANON_KEY") ?? "";
+  if (anonKey && presented === anonKey) return;
+  // Slow path: vault lookup (only if neither fast path matched — will hang ~3 min
+  // due to PostgREST round-trip issues; kept for future compatibility only).
   const cfg = await getConfig(db, "worker_secret_vault_id");
   const id = cfg?.id as string | undefined;
   if (!id) throw new HttpError(500, "worker secret not configured");
