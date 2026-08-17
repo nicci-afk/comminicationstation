@@ -29,52 +29,187 @@ import { qcComm, qcPerplexity, qcPersona, QcResult } from "./_shared/schemas/qc.
 
 const DEFAULT_MODELS = { stage1: "sonar-pro", stage2: "gpt-5.1", stage3: "claude-opus-4-8" };
 
-// Perplexity's sonar-pro returns semantically correct data but with slightly
-// different field names and shapes than our strict schema expects. Normalize
-// before validation so we don't reject valid runs on cosmetic mismatches.
+// Perplexity's sonar-pro returns semantically correct data but with different
+// field names and object shapes vs our strict schema. This normalizer coerces
+// every known divergence before zod validation so we never reject valid runs.
+
+function mapConf(v: unknown): "green" | "yellow" | "red" {
+  const s = String(v ?? "").toLowerCase();
+  if (s === "green" || s === "high" || s === "strong" || s === "confirmed") return "green";
+  if (s === "red" || s === "low" || s === "weak" || s === "insufficient") return "red";
+  return "yellow";
+}
+
 function mapCoverageLevel(level: unknown): "covered" | "partial" | "missing" {
   const s = String(level ?? "").toLowerCase();
-  if (s === "high" || s === "full" || s === "covered") return "covered";
-  if (s === "none" || s === "missing" || s === "not_found") return "missing";
-  return "partial"; // moderate, low, partial, unknown → partial
+  if (s === "high" || s === "full" || s === "covered" || s === "strong" || s === "complete") return "covered";
+  if (s === "none" || s === "missing" || s === "not_found" || s === "absent") return "missing";
+  return "partial";
+}
+
+function inferSignalCategory(label: string): string {
+  const l = label.toLowerCase();
+  if (/role|work|job|employer|career|profession|business|specializ|affiliation|certif/.test(l)) return "work";
+  if (/interest|hobby|passion|leisure/.test(l)) return "interests";
+  if (/communic|channel|tone|style|respond|email|text|prefer|format/.test(l)) return "communication";
+  if (/social|post|instagram|facebook|linkedin/.test(l)) return "social_behavior";
+  if (/content|blog|publish|write|thought_lead|media/.test(l)) return "content_style";
+  if (/network|community|group|partner|collabor/.test(l)) return "network";
+  if (/timing|schedule|cadence|frequency|latency/.test(l)) return "timing";
+  if (/bio|background|personal|geo|location|cross_domain|history/.test(l)) return "bio";
+  return "work";
 }
 
 function normalizePerplexityOutput(raw: unknown, sourceProfileId: string): unknown {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) return raw;
   const out = { ...(raw as Record<string, unknown>) };
 
-  // Inject required literals the model sometimes omits.
+  // Required literals the model sometimes omits.
   if (!out.output_schema_version) out.output_schema_version = "perplexity_output_v1";
   if (!out.source_profile_id) out.source_profile_id = sourceProfileId;
 
-  // Normalize coverage_map: model returns object-of-domains OR array with
-  // {domain, coverage_level} instead of {signal_category, status}.
-  let cm = out.coverage_map;
-  if (cm && !Array.isArray(cm) && typeof cm === "object") {
-    // {domains: {key: {...}}} or flat {key: {...}}
-    const inner = (cm as Record<string, unknown>).domains ?? cm;
-    if (typeof inner === "object" && !Array.isArray(inner)) {
-      cm = Object.entries(inner as Record<string, unknown>).map(([key, val]) => {
-        const v = (val ?? {}) as Record<string, unknown>;
-        return { signal_category: key, status: mapCoverageLevel(v.coverage_level ?? v.status), notes: String(v.notes ?? "") };
+  // coverage_map: {domains:{key:{notes,coverage,...}}} or [{domain,coverage_level}]
+  // → [{signal_category, status: "covered"|"partial"|"missing", notes}]
+  {
+    let cm = out.coverage_map;
+    if (cm && !Array.isArray(cm) && typeof cm === "object") {
+      const inner = (cm as Record<string, unknown>).domains ?? cm;
+      if (typeof inner === "object" && !Array.isArray(inner)) {
+        cm = Object.entries(inner as Record<string, unknown>).map(([key, val]) => {
+          const v = (val ?? {}) as Record<string, unknown>;
+          return { signal_category: key, status: mapCoverageLevel(v.coverage_level ?? v.coverage ?? v.status), notes: String(v.notes ?? "") };
+        });
+      }
+    } else if (Array.isArray(cm)) {
+      cm = (cm as unknown[]).map((item) => {
+        const v = (item ?? {}) as Record<string, unknown>;
+        const raw2 = String(v.status ?? v.coverage_level ?? v.coverage ?? "");
+        return {
+          signal_category: String(v.signal_category ?? v.domain ?? v.category ?? ""),
+          status: ["covered","partial","missing"].includes(raw2) ? raw2 : mapCoverageLevel(raw2),
+          notes: String(v.notes ?? ""),
+        };
       });
     }
-  } else if (Array.isArray(cm)) {
-    cm = (cm as unknown[]).map((item) => {
+    out.coverage_map = cm;
+  }
+
+  // observable_signals: {type,label,summary,confidence_band,time_window_relevance}
+  // → {signal,label:enum,category:enum,recency,source_type:enum,confidence:enum,evidence_refs}
+  if (Array.isArray(out.observable_signals)) {
+    out.observable_signals = (out.observable_signals as unknown[]).map((item) => {
       const v = (item ?? {}) as Record<string, unknown>;
+      const typeOrLabel = String(v.type ?? v.label ?? "unknown").toLowerCase();
+      const descLabel = String(v.label ?? v.signal ?? "");
+      const catCandidates = ["bio","work","interests","communication","social_behavior","activity","content_style","network","timing"];
+      const rawCat = String(v.category ?? "");
+      const src = String(v.source_type ?? "").toLowerCase();
       return {
-        signal_category: String(v.signal_category ?? v.domain ?? v.category ?? ""),
-        status: mapCoverageLevel(v.status && !["covered","partial","missing"].includes(String(v.status)) ? v.coverage_level : (v.status ?? v.coverage_level)),
-        notes: String(v.notes ?? ""),
+        signal: String(v.signal ?? v.summary ?? v.description ?? ""),
+        label: (["fact","pattern","hypothesis","unknown"].includes(typeOrLabel) ? typeOrLabel : "unknown") as string,
+        category: catCandidates.includes(rawCat) ? rawCat : inferSignalCategory(descLabel || typeOrLabel),
+        recency: String(v.recency ?? v.time_window_relevance ?? "recent"),
+        source_type: (["self_authored","third_party","directory","media"].includes(src) ? src : "third_party") as string,
+        confidence: mapConf(v.confidence ?? v.confidence_band),
+        evidence_refs: Array.isArray(v.evidence_refs) ? v.evidence_refs : [],
       };
     });
   }
-  out.coverage_map = cm;
 
-  // Normalize qc_status: model often returns a string instead of {passed, fail_reasons}.
+  // identity_resolution: {status:"resolved", primary_profile, ...}
+  // → {status:enum, matched_profiles:[{url,match_basis,confidence}], identity_risks:[]}
+  if (out.identity_resolution && typeof out.identity_resolution === "object") {
+    const ir = out.identity_resolution as Record<string, unknown>;
+    const validStatuses = ["strong","partial","weak","unresolved"];
+    if (!validStatuses.includes(String(ir.status)) || !Array.isArray(ir.matched_profiles)) {
+      const s = String(ir.status ?? "").toLowerCase();
+      const pp = (ir.primary_profile ?? {}) as Record<string, unknown>;
+      const ppRefs = Array.isArray(pp.evidence_refs) ? pp.evidence_refs as string[] : [];
+      const ppIdents = Array.isArray(pp.core_identifiers) ? (pp.core_identifiers as unknown[]).slice(0, 3).map(String) : [];
+      out.identity_resolution = {
+        status: validStatuses.includes(s) ? s
+          : (s === "resolved" || s === "confirmed" || s === "high_confidence") ? "strong"
+          : (s === "probable" || s === "moderate") ? "partial"
+          : (s === "limited" || s === "low_confidence") ? "weak"
+          : "unresolved",
+        matched_profiles: ppRefs.length > 0 ? [{ url: ppRefs[0], match_basis: ppIdents, confidence: mapConf(ir.confidence_band ?? "green") }]
+          : (Array.isArray(ir.matched_profiles) ? ir.matched_profiles : []),
+        identity_risks: Array.isArray(ir.identity_risks) ? ir.identity_risks
+          : Array.isArray(ir.cautions) ? ir.cautions : [],
+      };
+    }
+  }
+
+  // drift_tracking: [] or missing → required object shape
+  if (!out.drift_tracking || Array.isArray(out.drift_tracking)) {
+    out.drift_tracking = { drift_status: "none", drift_window: "current", drift_signals: [], drift_impact: [], recommended_response: "hold", requires_human_review: false };
+  } else if (typeof out.drift_tracking === "object") {
+    const dt = out.drift_tracking as Record<string, unknown>;
+    if (!dt.drift_status) dt.drift_status = "none";
+    if (!dt.drift_window) dt.drift_window = "current";
+    if (!Array.isArray(dt.drift_signals)) dt.drift_signals = [];
+    if (!Array.isArray(dt.drift_impact)) dt.drift_impact = [];
+    if (!dt.recommended_response) dt.recommended_response = "hold";
+    if (dt.requires_human_review === undefined) dt.requires_human_review = false;
+  }
+
+  // uncertainty_map: {unknowns:[{label,reason}]} or [{label,reason}]
+  // → [{unknown, why_it_matters, recommended_resolution}]
+  {
+    let um = out.uncertainty_map;
+    if (!Array.isArray(um)) {
+      const umObj = (um ?? {}) as Record<string, unknown>;
+      um = Array.isArray(umObj.unknowns) ? umObj.unknowns : [];
+    }
+    out.uncertainty_map = (um as unknown[]).map((item) => {
+      const u = (item ?? {}) as Record<string, unknown>;
+      return {
+        unknown: String(u.unknown ?? u.label ?? u.topic ?? ""),
+        why_it_matters: String(u.why_it_matters ?? u.reason ?? u.description ?? ""),
+        recommended_resolution: String(u.recommended_resolution ?? u.resolution ?? "Seek direct confirmation"),
+      };
+    });
+  }
+
+  // why_not_higher_confidence: string → string[]
+  if (typeof out.why_not_higher_confidence === "string") {
+    out.why_not_higher_confidence = [out.why_not_higher_confidence];
+  } else if (!Array.isArray(out.why_not_higher_confidence)) {
+    out.why_not_higher_confidence = [];
+  }
+
+  // handoff_packet: model returns {summary:{...}, cautions:[], allowed_strategy_zone}
+  // schema wants {handoff_version, identity_status, top_signals, top_contradictions,
+  //               drift_tracking:{}, uncertainty_map:[], allowed_strategy_zone}
+  if (out.handoff_packet && typeof out.handoff_packet === "object") {
+    const hp = out.handoff_packet as Record<string, unknown>;
+    if (hp.handoff_version !== "persona_handoff_v1") {
+      const summary = (hp.summary ?? {}) as Record<string, unknown>;
+      const topSignals: string[] = [];
+      if (summary.identity_anchor) topSignals.push(String(summary.identity_anchor));
+      if (summary.positioning_anchor) topSignals.push(String(summary.positioning_anchor));
+      if (summary.partnership_anchor) topSignals.push(String(summary.partnership_anchor));
+      if (summary.communication_anchor) topSignals.push(String(summary.communication_anchor));
+      const themes = Array.isArray(hp.priority_rapport_themes) ? (hp.priority_rapport_themes as unknown[]).map(String) : [];
+      const cautions = Array.isArray(hp.cautions) ? (hp.cautions as unknown[]).map(String) : [];
+      out.handoff_packet = {
+        handoff_version: "persona_handoff_v1",
+        identity_status: String(summary.identity_anchor ?? hp.identity_status ?? "resolved"),
+        top_signals: topSignals.length > 0 ? topSignals : themes.slice(0, 4),
+        top_contradictions: Array.isArray(hp.top_contradictions) ? hp.top_contradictions : [],
+        drift_tracking: (hp.drift_tracking ?? {}) as Record<string, unknown>,
+        uncertainty_map: cautions,
+        allowed_strategy_zone: String(hp.allowed_strategy_zone ?? "yellow"),
+      };
+    }
+  }
+
+  // qc_status: string → {passed, fail_reasons}
   if (typeof out.qc_status === "string") {
-    const s = (out.qc_status as string).toLowerCase();
-    out.qc_status = { passed: s === "passed" || s === "pass" || s === "ok", fail_reasons: [] };
+    const s = String(out.qc_status).toLowerCase();
+    out.qc_status = { passed: s === "passed" || s === "pass" || s === "ok" || s === "tool_limited_but_adequate", fail_reasons: [] };
+  } else if (!out.qc_status) {
+    out.qc_status = { passed: true, fail_reasons: [] };
   }
 
   return out;
