@@ -68,14 +68,34 @@ function normalizePerplexityOutput(raw: unknown, sourceProfileId: string): unkno
   if (!out.output_schema_version) out.output_schema_version = "perplexity_output_v1";
   if (!out.source_profile_id) out.source_profile_id = sourceProfileId;
 
-  // coverage_map: {domains:{key:{notes,coverage,...}}} or [{domain,coverage_level}]
-  // → [{signal_category, status: "covered"|"partial"|"missing", notes}]
+  // coverage_map: various object shapes → [{signal_category, status, notes}]
+  // Handles: {domains:{k:{...}}}, {domains_covered:[{domain,coverage_level}]},
+  //          {dimensions:{k:{...}}}, bare domain-keyed objects (filtering meta keys)
   {
+    const CM_META = new Set(["notes","gaps","time_window_considered","overall_coverage","summary","areas_missing","areas_covered"]);
     let cm = out.coverage_map;
     if (cm && !Array.isArray(cm) && typeof cm === "object") {
-      const inner = (cm as Record<string, unknown>).domains ?? cm;
-      if (typeof inner === "object" && !Array.isArray(inner)) {
-        cm = Object.entries(inner as Record<string, unknown>).map(([key, val]) => {
+      const cmObj = cm as Record<string, unknown>;
+      const domainArr = cmObj.domains_covered ?? cmObj.domains ?? null;
+      const dimObj = cmObj.dimensions ?? null;
+      if (Array.isArray(domainArr)) {
+        cm = (domainArr as unknown[]).map((item) => {
+          const v = (item ?? {}) as Record<string, unknown>;
+          return {
+            signal_category: String(v.domain ?? v.signal_category ?? v.category ?? v.area ?? ""),
+            status: mapCoverageLevel(v.coverage_level ?? v.coverage ?? v.status),
+            notes: String(v.notes ?? v.description ?? ""),
+          };
+        });
+      } else if (dimObj && typeof dimObj === "object" && !Array.isArray(dimObj)) {
+        cm = Object.entries(dimObj as Record<string, unknown>).map(([key, val]) => {
+          const v = (val ?? {}) as Record<string, unknown>;
+          return { signal_category: key, status: mapCoverageLevel(v.coverage_level ?? v.coverage ?? v.status), notes: String(v.notes ?? "") };
+        });
+      } else {
+        // Bare domain-keyed object — exclude metadata keys
+        const domainEntries = Object.entries(cmObj).filter(([k, v]) => !CM_META.has(k) && v && typeof v === "object");
+        cm = domainEntries.map(([key, val]) => {
           const v = (val ?? {}) as Record<string, unknown>;
           return { signal_category: key, status: mapCoverageLevel(v.coverage_level ?? v.coverage ?? v.status), notes: String(v.notes ?? "") };
         });
@@ -85,9 +105,9 @@ function normalizePerplexityOutput(raw: unknown, sourceProfileId: string): unkno
         const v = (item ?? {}) as Record<string, unknown>;
         const raw2 = String(v.status ?? v.coverage_level ?? v.coverage ?? "");
         return {
-          signal_category: String(v.signal_category ?? v.domain ?? v.category ?? ""),
-          status: ["covered","partial","missing"].includes(raw2) ? raw2 : mapCoverageLevel(raw2),
-          notes: String(v.notes ?? ""),
+          signal_category: String(v.signal_category ?? v.domain ?? v.category ?? v.area ?? ""),
+          status: (["covered","partial","missing"].includes(raw2) ? raw2 : mapCoverageLevel(raw2)) as "covered" | "partial" | "missing",
+          notes: String(v.notes ?? v.description ?? ""),
         };
       });
     }
@@ -129,7 +149,7 @@ function normalizePerplexityOutput(raw: unknown, sourceProfileId: string): unkno
       out.identity_resolution = {
         status: validStatuses.includes(s) ? s
           : (s === "resolved" || s === "confirmed" || s === "high_confidence") ? "strong"
-          : (s === "probable" || s === "moderate") ? "partial"
+          : (s === "probable" || s === "moderate" || s === "partial_match" || s === "partial_resolution") ? "partial"
           : (s === "limited" || s === "low_confidence") ? "weak"
           : "unresolved",
         matched_profiles: ppRefs.length > 0 ? [{ url: ppRefs[0], match_basis: ppIdents, confidence: mapConf(ir.confidence_band ?? "green") }]
@@ -137,6 +157,14 @@ function normalizePerplexityOutput(raw: unknown, sourceProfileId: string): unkno
         identity_risks: Array.isArray(ir.identity_risks) ? ir.identity_risks
           : Array.isArray(ir.cautions) ? ir.cautions : [],
       };
+    }
+    // Cap matched_profiles confidence: green is invalid when identity is weak/unresolved
+    const idR = out.identity_resolution as Record<string, unknown>;
+    if ((idR.status === "weak" || idR.status === "unresolved") && Array.isArray(idR.matched_profiles)) {
+      idR.matched_profiles = (idR.matched_profiles as Record<string, unknown>[]).map((p) => ({
+        ...p,
+        confidence: p.confidence === "green" ? "yellow" : p.confidence,
+      }));
     }
   }
 
@@ -153,28 +181,73 @@ function normalizePerplexityOutput(raw: unknown, sourceProfileId: string): unkno
     if (dt.requires_human_review === undefined) dt.requires_human_review = false;
   }
 
-  // uncertainty_map: {unknowns:[{label,reason}]} or [{label,reason}]
-  // → [{unknown, why_it_matters, recommended_resolution}]
+  // uncertainty_map: many shapes → [{unknown, why_it_matters, recommended_resolution}]
+  // Handles: {unknowns:[...]}, {areas:[...]}, {items:[...]}, {factors:[...]},
+  //          domain-keyed objects {key:{reason,importance}}, raw string-valued objects
   {
+    const UM_META = new Set(["notes","tone_uncertainty","overall","summary","status"]);
     let um = out.uncertainty_map;
     if (!Array.isArray(um)) {
       const umObj = (um ?? {}) as Record<string, unknown>;
-      um = Array.isArray(umObj.unknowns) ? umObj.unknowns : [];
+      const innerArr = umObj.unknowns ?? umObj.areas ?? umObj.items ?? umObj.factors ?? null;
+      if (Array.isArray(innerArr)) {
+        um = innerArr;
+      } else if (um && typeof um === "object") {
+        // Domain-keyed object: {key: {reason, importance, ...}} or {key: "string"}
+        um = Object.entries(umObj)
+          .filter(([k]) => !UM_META.has(k))
+          .map(([k, v]) => {
+            if (typeof v === "string") {
+              return { unknown: k, why_it_matters: v, recommended_resolution: "Seek direct confirmation" };
+            }
+            const vObj = (v ?? {}) as Record<string, unknown>;
+            return {
+              unknown: String(vObj.unknown ?? vObj.label ?? vObj.topic ?? vObj.area ?? k),
+              why_it_matters: String(vObj.why_it_matters ?? vObj.reason ?? vObj.importance ?? vObj.why ?? vObj.description ?? ""),
+              recommended_resolution: String(vObj.recommended_resolution ?? vObj.resolution ?? vObj.approach ?? "Seek direct confirmation"),
+            };
+          });
+      } else {
+        um = [];
+      }
     }
     out.uncertainty_map = (um as unknown[]).map((item) => {
       const u = (item ?? {}) as Record<string, unknown>;
       return {
-        unknown: String(u.unknown ?? u.label ?? u.topic ?? ""),
-        why_it_matters: String(u.why_it_matters ?? u.reason ?? u.description ?? ""),
-        recommended_resolution: String(u.recommended_resolution ?? u.resolution ?? "Seek direct confirmation"),
+        unknown: String(u.unknown ?? u.label ?? u.topic ?? u.area ?? u.factor ?? ""),
+        why_it_matters: String(u.why_it_matters ?? u.reason ?? u.description ?? u.importance ?? u.why ?? ""),
+        recommended_resolution: String(u.recommended_resolution ?? u.resolution ?? u.approach ?? u.suggested_action ?? "Seek direct confirmation"),
       };
     });
   }
 
-  // why_not_higher_confidence: string → string[]
+  // contradictions: many shapes → [{topic, conflict_summary, operational_effect}]
+  // Handles: {issue,status,details}, {recency_notes,conflict_summary,operational_effect},
+  //          {status,severity,description}, {topic,impact,description}
+  if (!Array.isArray(out.contradictions)) {
+    out.contradictions = [];
+  } else {
+    out.contradictions = (out.contradictions as unknown[]).map((item) => {
+      const c = (item ?? {}) as Record<string, unknown>;
+      return {
+        topic: String(c.topic ?? c.issue ?? c.recency_notes ?? c.signal ?? c.conflict_area ?? c.area ?? c.dimension ?? ""),
+        conflict_summary: String(c.conflict_summary ?? c.description ?? c.details ?? c.summary ?? c.conflict ?? c.status ?? ""),
+        operational_effect: String(c.operational_effect ?? c.impact ?? c.effect ?? c.severity_note ??
+          (c.severity ? `Severity: ${c.severity}` : "") ?? ""),
+      };
+    }).filter((c) => c.topic || c.conflict_summary);
+  }
+
+  // why_not_higher_confidence: string | object → string[]
   if (typeof out.why_not_higher_confidence === "string") {
     out.why_not_higher_confidence = [out.why_not_higher_confidence];
-  } else if (!Array.isArray(out.why_not_higher_confidence)) {
+  } else if (Array.isArray(out.why_not_higher_confidence)) {
+    // already correct
+  } else if (out.why_not_higher_confidence && typeof out.why_not_higher_confidence === "object") {
+    out.why_not_higher_confidence = Object.values(out.why_not_higher_confidence as Record<string, unknown>)
+      .filter((v) => typeof v === "string")
+      .map(String);
+  } else {
     out.why_not_higher_confidence = [];
   }
 
@@ -406,10 +479,11 @@ export default async function handler(req: Request): Promise<Response> {
         const handoff = s1.handoff_packet as Record<string, unknown>;
         const upstreamZone = String(handoff.allowed_strategy_zone ?? "yellow");
         // Compact evidence capsule per the downstream contract (no raw dumps).
+        // Raw stored artifact may have non-array shapes; guard with Array.isArray.
         const capsule = {
-          observable_signals: ((s1.observable_signals as unknown[]) ?? []).slice(0, 14),
-          contradictions: s1.contradictions ?? [],
-          uncertainty_map: ((s1.uncertainty_map as unknown[]) ?? []).slice(0, 8),
+          observable_signals: (Array.isArray(s1.observable_signals) ? s1.observable_signals as unknown[] : []).slice(0, 14),
+          contradictions: Array.isArray(s1.contradictions) ? s1.contradictions : [],
+          uncertainty_map: (Array.isArray(s1.uncertainty_map) ? s1.uncertainty_map as unknown[] : []).slice(0, 8),
           identity_resolution_status: (s1.identity_resolution as Record<string, unknown>)?.status,
         };
         const input = buildPersonaInput(req_, handoff, capsule);
