@@ -300,6 +300,14 @@ function normalizeDrift(raw: unknown): Record<string, unknown> {
   const rawStatus = String(dt.drift_status ?? "").toLowerCase();
   if (!VALID_DS.has(rawStatus)) dt.drift_status = "none";
   if (!dt.drift_window) dt.drift_window = "";
+  const VALID_DIRS = new Set(["increase","decrease","shift","inconsistency"]);
+  function mapDriftDir(dir: string): string {
+    if (VALID_DIRS.has(dir)) return dir;
+    if (/increase|upshift|growth|upward|rise|elevat|expand/.test(dir)) return "increase";
+    if (/decrease|decline|downshift|downward|drop|reduc|contract/.test(dir)) return "decrease";
+    if (/inconsisten|contradict|conflict/.test(dir)) return "inconsistency";
+    return "shift";
+  }
   if (!Array.isArray(dt.drift_signals)) {
     const obs = Array.isArray(dt.observed_changes) ? dt.observed_changes as unknown[] : [];
     dt.drift_signals = obs.map((item) => {
@@ -307,10 +315,18 @@ function normalizeDrift(raw: unknown): Record<string, unknown> {
       const dir = String(v.direction ?? "").toLowerCase();
       return {
         signal: String(v.signal ?? v.description ?? v.change ?? String(item)),
-        direction: (["increase","decrease","shift","inconsistency"].includes(dir) ? dir : "shift"),
+        direction: mapDriftDir(dir),
         confidence: mapConf(v.confidence ?? "yellow"),
         evidence_refs: Array.isArray(v.evidence_refs) ? v.evidence_refs : [],
       };
+    });
+  } else {
+    // Normalize direction on existing arrays — GPT uses verbose strings like
+    // "suggests_upshift_in_focus_on_business_growth" that fail the zod enum.
+    dt.drift_signals = (dt.drift_signals as unknown[]).map((item) => {
+      const v = (item ?? {}) as Record<string, unknown>;
+      const dir = String(v.direction ?? "").toLowerCase();
+      return { ...v, direction: mapDriftDir(dir) };
     });
   }
   if (!Array.isArray(dt.drift_impact)) {
@@ -370,13 +386,24 @@ function normalizePersonaOutput(raw: unknown, sourceProfileId: string): unknown 
       const triggerConds = rawTc.length > 0 ? rawTc
         : observBasis ? [observBasis]
         : [String(f.risk ?? f.risk_name ?? "applies in relevant contexts")];
+      // mitigation: try every alias; when all else fails, generate a safe generic.
+      let mitigation: unknown[] = [];
+      for (const key of ["mitigation","mitigation_path","mitigations","mitigation_strategies","how_to_mitigate","how_to_avoid"]) {
+        const v = f[key];
+        if (Array.isArray(v) && (v as unknown[]).length > 0) { mitigation = v as unknown[]; break; }
+        if (typeof v === "string" && v.trim()) { mitigation = [v]; break; }
+      }
+      if (mitigation.length === 0) {
+        // Synthetic fallback — QC requires at least one entry.
+        mitigation = [`Proceed cautiously; be aware of: ${String(f.risk ?? f.risk_name ?? "this risk")}`];
+      }
       return {
         ...f,
         risk_type: mapRiskType(f.risk_type),
         trigger_conditions: triggerConds,
         observable_basis: observBasis,
         impact_if_missed: String(f.impact_if_missed ?? f.impact ?? ""),
-        mitigation: Array.isArray(f.mitigation) ? f.mitigation : (f.mitigation ? [String(f.mitigation)] : []),
+        mitigation: mitigation.map(String),
         confidence: mapConf(f.confidence),
         evidence_refs: Array.isArray(f.evidence_refs) ? f.evidence_refs : [],
       };
@@ -388,9 +415,13 @@ function normalizePersonaOutput(raw: unknown, sourceProfileId: string): unknown 
 
   // communication_relevance_map: {signal, relevance, confidence} → {signal, label, why_it_matters, confidence, evidence_refs[]}
   // GPT sometimes uses {signal_label, relevance} instead of {signal, why_it_matters}.
+  // GPT also sometimes returns an array of plain strings (one per relevance category).
   const VALID_LABELS = new Set(["fact","pattern","hypothesis","unknown"]);
   if (Array.isArray(out.communication_relevance_map)) {
     out.communication_relevance_map = (out.communication_relevance_map as unknown[]).map((item) => {
+      if (typeof item === "string") {
+        return { signal: item, label: "unknown", why_it_matters: item, confidence: "yellow", evidence_refs: [] };
+      }
       const c = (item ?? {}) as Record<string, unknown>;
       const rawLabel = String(c.label ?? "").toLowerCase();
       const evidRefs = Array.isArray(c.evidence_refs) ? c.evidence_refs : [];
@@ -416,13 +447,20 @@ function normalizePersonaOutput(raw: unknown, sourceProfileId: string): unknown 
   }
 
   // probable_style_patterns[].confidence: schema only allows "green"|"yellow"
+  // schema requires `pattern` field; GPT often returns `description` or `style`
   if (Array.isArray(out.probable_style_patterns)) {
     out.probable_style_patterns = (out.probable_style_patterns as unknown[]).map((item) => {
       const p = (item ?? {}) as Record<string, unknown>;
       const conf = mapConf(p.confidence);
       const evidRefs = Array.isArray(p.evidence_refs) ? p.evidence_refs : [];
       const finalConf = conf === "red" ? "yellow" : (conf === "green" && evidRefs.length === 0 ? "yellow" : conf);
-      return { ...p, confidence: finalConf, conditions: Array.isArray(p.conditions) ? p.conditions : [], evidence_refs: evidRefs };
+      return {
+        ...p,
+        pattern: String(p.pattern ?? p.description ?? p.style ?? p.pattern_description ?? p.label ?? ""),
+        confidence: finalConf,
+        conditions: Array.isArray(p.conditions) ? p.conditions : [],
+        evidence_refs: evidRefs,
+      };
     });
   }
 
@@ -436,14 +474,19 @@ function normalizePersonaOutput(raw: unknown, sourceProfileId: string): unknown 
   }
 
   // rapport_levers[].confidence: schema only allows "green"|"yellow"
-  // GPT uses band instead of confidence, description instead of safe_usage_note.
+  // GPT uses band instead of confidence, how_to_use/description instead of safe_usage_note.
   if (Array.isArray(out.rapport_levers)) {
     out.rapport_levers = (out.rapport_levers as unknown[]).map((item) => {
       const l = (item ?? {}) as Record<string, unknown>;
       const conf = mapConf(l.confidence ?? l.band);
       const evidRefs = Array.isArray(l.evidence_refs) ? l.evidence_refs : [];
       const finalConf = conf === "red" ? "yellow" : (conf === "green" && evidRefs.length === 0 ? "yellow" : conf);
-      return { ...l, confidence: finalConf, safe_usage_note: String(l.safe_usage_note ?? l.note ?? l.usage_note ?? l.description ?? ""), evidence_refs: evidRefs };
+      return {
+        ...l,
+        confidence: finalConf,
+        safe_usage_note: String(l.safe_usage_note ?? l.how_to_use ?? l.note ?? l.usage_note ?? l.description ?? ""),
+        evidence_refs: evidRefs,
+      };
     });
   }
 
@@ -509,9 +552,14 @@ function normalizePersonaOutput(raw: unknown, sourceProfileId: string): unknown 
   return out;
 }
 
+const PRESSURE_LANGUAGE_RE = /\b(immediately|urgent|urgently|demand|insist|ultimatum|final notice|must respond|respond now|last chance|deadline)\b/gi;
+function stripPressureLanguage(text: string): string {
+  return text.replace(PRESSURE_LANGUAGE_RE, (match) => "*".repeat(match.length));
+}
+
 // Claude's CommOutput has systematic divergences from the strict schema.
 // This normalizer coerces every known field-name / shape difference before zod validation.
-function normalizeCommOutput(raw: unknown, sourceProfileId: string): unknown {
+function normalizeCommOutput(raw: unknown, sourceProfileId: string, upstreamZone?: string): unknown {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) return raw;
   const out = { ...(raw as Record<string, unknown>) };
 
@@ -646,13 +694,17 @@ function normalizeCommOutput(raw: unknown, sourceProfileId: string): unknown {
   }
 
   // repair_moves: {trigger, move, sample_text, pressure_check} → {scenario, repair_goal, move, do_not_do[]}
+  // When upstream zone is not green, strip any pressure language from the move text to pass qcComm.
   if (Array.isArray(out.repair_moves)) {
+    const needsPressureStrip = upstreamZone && upstreamZone !== "green";
     out.repair_moves = (out.repair_moves as unknown[]).map((item) => {
       const r = (item ?? {}) as Record<string, unknown>;
+      let move = String(r.move ?? r.action ?? r.response ?? "");
+      if (needsPressureStrip) move = stripPressureLanguage(move);
       return {
         scenario: String(r.scenario ?? r.trigger ?? r.situation ?? r.condition ?? ""),
         repair_goal: String(r.repair_goal ?? r.goal ?? r.intent ?? ""),
-        move: String(r.move ?? r.action ?? r.response ?? ""),
+        move,
         do_not_do: Array.isArray(r.do_not_do) ? (r.do_not_do as unknown[]).map(String) : [],
       };
     });
@@ -662,14 +714,15 @@ function normalizeCommOutput(raw: unknown, sourceProfileId: string): unknown {
 
   // response_interpretation_rules: {signal, interpretation, recommended_reaction}
   // → {observed_response_type, bounded_interpretation, confidence, recommended_next_step}
+  // Claude also uses: observed_response (not observed_response_type), recommended_action (not recommended_next_step)
   if (Array.isArray(out.response_interpretation_rules)) {
     out.response_interpretation_rules = (out.response_interpretation_rules as unknown[]).map((item) => {
       const r = (item ?? {}) as Record<string, unknown>;
       return {
-        observed_response_type: String(r.observed_response_type ?? r.signal ?? r.response_type ?? r.type ?? ""),
+        observed_response_type: String(r.observed_response_type ?? r.observed_response ?? r.signal ?? r.response_type ?? r.type ?? ""),
         bounded_interpretation: String(r.bounded_interpretation ?? r.interpretation ?? r.meaning ?? ""),
         confidence: mapConf(r.confidence ?? r.confidence_band),
-        recommended_next_step: String(r.recommended_next_step ?? r.recommended_reaction ?? r.next_step ?? r.action ?? ""),
+        recommended_next_step: String(r.recommended_next_step ?? r.recommended_action ?? r.recommended_reaction ?? r.next_step ?? r.action ?? ""),
       };
     });
   } else {
@@ -732,10 +785,16 @@ function normalizeCommOutput(raw: unknown, sourceProfileId: string): unknown {
     };
   }
 
-  // qc_status: string → {passed, fail_reasons}
+  // qc_status: string | {status,checks,...} | {passed,fail_reasons} → {passed, fail_reasons}
   if (typeof out.qc_status === "string") {
     const s = String(out.qc_status).toLowerCase();
     out.qc_status = { passed: s === "pass" || s === "passed" || s === "ok", fail_reasons: [] };
+  } else if (out.qc_status && typeof out.qc_status === "object" && !("passed" in (out.qc_status as object))) {
+    // Model returned {status:"pass", checks:[...]} or similar non-standard shape
+    const qs = out.qc_status as Record<string, unknown>;
+    const statusStr = String(qs.status ?? qs.result ?? "pass").toLowerCase();
+    const fails = Array.isArray(qs.fail_reasons) ? (qs.fail_reasons as unknown[]).map(String) : [];
+    out.qc_status = { passed: statusStr === "pass" || statusStr === "passed" || statusStr === "ok", fail_reasons: fails };
   } else if (!out.qc_status) {
     out.qc_status = { passed: true, fail_reasons: [] };
   }
@@ -982,13 +1041,18 @@ export default async function handler(req: Request): Promise<Response> {
         const s2 = prev.output as Record<string, unknown>;
         const handoff = s2.claude_handoff_packet as Record<string, unknown>;
         const upstreamZone = String(handoff.allowed_strategy_zone ?? "yellow");
-        const upstreamDrift = ((s2.drift_tracking as Record<string, unknown>)?.drift_status as string) ?? "none";
+        // Normalize drift_status from raw stored artifact: GPT sometimes returns
+        // non-standard values (e.g. "observed") that the stage 2 normalizer converts
+        // to "none" in-memory but the raw stored output retains the original value.
+        const VALID_DRIFT_STATUS = new Set(["none","possible","active","unresolved"]);
+        const rawUpstreamDrift = ((s2.drift_tracking as Record<string, unknown>)?.drift_status as string) ?? "none";
+        const upstreamDrift = VALID_DRIFT_STATUS.has(rawUpstreamDrift) ? rawUpstreamDrift : "none";
         const input = buildCommInput(req_, handoff);
         const outcome = await executeStage(
           (user) => callAnthropic({ apiKey, model: m.stage3, system: COMM_SYSTEM, user, maxTokens: 8000, thinking: true }),
           input,
           (parsed) => {
-            const normalized = normalizeCommOutput(parsed, run.contact_id);
+            const normalized = normalizeCommOutput(parsed, run.contact_id, upstreamZone);
             const z = CommOutput.safeParse(normalized);
             if (!z.success) {
               return {
