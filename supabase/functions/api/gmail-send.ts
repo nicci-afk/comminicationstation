@@ -65,9 +65,12 @@ export default async function handler(req: Request): Promise<Response> {
   const db = serviceClient();
   try {
     const { userId } = await requireUser(req, db);
-    const { queue_item_id, body } = await req.json();
+    const { queue_item_id, body, approval } = await req.json();
     if (!queue_item_id || !body?.trim()) {
       throw new HttpError(400, "queue_item_id and body are required");
+    }
+    if (approval !== "USER_CONFIRMED") {
+      throw new HttpError(403, "explicit user approval is required before sending");
     }
 
     // Fetch the queue item (user-scoped)
