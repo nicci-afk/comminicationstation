@@ -135,3 +135,67 @@ export interface Profile {
   digest_hour: number;
   digest_enabled: boolean;
 }
+
+export type MccSection =
+  | "NEEDS_YOU_NOW"
+  | "NEXT"
+  | "CHATGPT_CAN_HANDLE"
+  | "WAITING_ON_OTHERS"
+  | "BLOCKED"
+  | "SAFE_TO_DEFER";
+
+export interface MccTodayItem {
+  user_id: string;
+  section: MccSection;
+  section_order: number;
+  section_rank: number;
+  effective_priority: number;
+  priority_reasons: string[];
+  critical_attention: boolean;
+  obligation_id: string;
+  type: "ACTION" | "WAITING" | "DEADLINE" | "DECISION" | "RISK" | "DISCREPANCY" | "PROMISE";
+  title: string;
+  state: string;
+  risk_level: "RED" | "ORANGE" | "YELLOW" | "GREEN";
+  execution_owner: "NICCI" | "CHATGPT" | "CHATGPT_PREP" | "OTHER" | "WAITING";
+  due_at: string | null;
+  due_kind: "HARD" | "SOFT" | null;
+  waiting_on: string | null;
+  waiting_since: string | null;
+  follow_up_at: string | null;
+  next_action: string | null;
+  verification_state: "VERIFIED" | "PARTIALLY_VERIFIED" | "UNVERIFIED" | "CONFLICT" | "STALE";
+  freshness_expires_at: string | null;
+  project_id: string | null;
+  project_title: string | null;
+  project_health: "ON_TRACK" | "NEEDS_ATTENTION" | "AT_RISK" | null;
+  project_health_method: "MANUAL" | "DERIVED" | null;
+  project_health_reason: string | null;
+  project_health_updated_at: string | null;
+  business_id: string | null;
+  is_overdue: boolean;
+  hard_due_within_24h: boolean;
+  due_within_24h: boolean;
+  due_within_3d: boolean;
+  due_within_7d: boolean;
+  follow_up_due: boolean;
+  is_stale: boolean;
+  has_open_dependency: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ObligationSource {
+  id: string;
+  obligation_id: string;
+  source_system: string;
+  source_type: string | null;
+  source_ref: string;
+  source_url: string | null;
+  source_timestamp: string | null;
+  content_hash: string | null;
+  claim_scope: string[];
+  authoritative_claims: string[];
+  evidence_role: "PRIMARY" | "SUPPORTING" | "CONTEXT";
+  created_at: string;
+}
