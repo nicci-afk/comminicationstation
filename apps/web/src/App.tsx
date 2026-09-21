@@ -1,11 +1,12 @@
 import { useEffect, useState } from "react";
 import { NavLink, Navigate, Route, Routes } from "react-router-dom";
 import type { Session } from "@supabase/supabase-js";
-import { Inbox, Landmark, ListTodo, Settings as SettingsIcon, Sunrise, Users } from "lucide-react";
+import { Inbox, Landmark, ListTodo, Settings as SettingsIcon, ShieldCheck, Sunrise, Users } from "lucide-react";
 import { supabase } from "./lib/supabase";
 import { useQueueRealtime } from "./lib/hooks";
 import Login from "./pages/Login";
 import Today from "./pages/Today";
+import Executive from "./pages/Executive";
 import Queue from "./pages/Queue";
 import ItemDetail from "./pages/ItemDetail";
 import Contacts from "./pages/Contacts";
@@ -35,6 +36,7 @@ function Shell() {
   useQueueRealtime();
   const nav = [
     { to: "/today", label: "Today", icon: Sunrise },
+    { to: "/executive", label: "Executive", icon: ShieldCheck },
     { to: "/queue", label: "Queue", icon: ListTodo },
     { to: "/contacts", label: "Contacts", icon: Users },
     { to: "/backlog", label: "Backlog", icon: Inbox },
@@ -42,7 +44,6 @@ function Shell() {
   ];
   return (
     <div className="min-h-[100dvh] flex">
-      {/* Sidebar — desktop only */}
       <aside className="hidden sm:flex w-52 shrink-0 border-r border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 flex-col">
         <div className="px-4 py-4 flex items-center gap-2 border-b border-slate-100 dark:border-slate-800">
           <Landmark className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
@@ -73,11 +74,11 @@ function Shell() {
         </button>
       </aside>
 
-      {/* Main content — extra bottom padding on mobile for bottom nav */}
       <main className="flex-1 min-w-0 pb-16 sm:pb-0">
         <Routes>
           <Route path="/" element={<Navigate to="/today" replace />} />
           <Route path="/today" element={<Today />} />
+          <Route path="/executive" element={<Executive />} />
           <Route path="/queue" element={<Queue />} />
           <Route path="/item/:id" element={<ItemDetail />} />
           <Route path="/contacts" element={<Contacts />} />
@@ -88,14 +89,13 @@ function Shell() {
         </Routes>
       </main>
 
-      {/* Bottom nav — mobile only */}
-      <nav className="sm:hidden fixed bottom-0 inset-x-0 z-40 border-t border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 flex safe-area-pb">
+      <nav className="sm:hidden fixed bottom-0 inset-x-0 z-40 border-t border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 flex safe-area-pb overflow-x-auto">
         {nav.map(({ to, label, icon: Icon }) => (
           <NavLink
             key={to}
             to={to}
             className={({ isActive }) =>
-              `flex-1 flex flex-col items-center justify-center py-2 gap-0.5 text-[10px] font-medium transition min-h-[56px] ${
+              `min-w-[64px] flex-1 flex flex-col items-center justify-center py-2 gap-0.5 text-[10px] font-medium transition min-h-[56px] ${
                 isActive
                   ? "text-indigo-600 dark:text-indigo-400"
                   : "text-slate-500 dark:text-slate-400"
