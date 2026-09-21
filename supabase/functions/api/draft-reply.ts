@@ -105,11 +105,21 @@ export default async function handler(req: Request): Promise<Response> {
         language_do: comm.language_do,
         language_avoid: comm.language_avoid,
         opening_options: comm.opening_options,
+        communication_objective: typeof body.objective === "string" && body.objective.trim()
+          ? body.objective.trim()
+          : "answer the client clearly and move the conversation toward the most appropriate next step",
         conversation: context,
       }),
     });
-    const parsed = result.parsed as { draft?: string; notes?: string };
+    const parsed = result.parsed as {
+      draft?: string;
+      notes?: string;
+      verification_needed?: unknown;
+    };
     if (!parsed.draft) throw new Error("model returned no draft");
+    const verificationNeeded = Array.isArray(parsed.verification_needed)
+      ? parsed.verification_needed.filter((v): v is string => typeof v === "string" && v.trim().length > 0)
+      : [];
 
     const { data: saved, error } = await db
       .from("reply_drafts")
@@ -138,7 +148,13 @@ export default async function handler(req: Request): Promise<Response> {
       refId: saved.id,
     });
 
-    return json({ draft: parsed.draft, notes: parsed.notes ?? "", draft_id: saved.id });
+    return json({
+      draft: parsed.draft,
+      notes: parsed.notes ?? "",
+      verification_needed: verificationNeeded,
+      draft_id: saved.id,
+      approval_state: "DRAFT_ONLY",
+    });
   } catch (e) {
     const status = e instanceof HttpError ? e.status : 500;
     return json({ error: (e as Error).message }, status);
