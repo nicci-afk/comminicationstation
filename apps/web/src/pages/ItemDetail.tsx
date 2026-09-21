@@ -134,7 +134,11 @@ export default function ItemDetail() {
 
   const sendSms = useMutation({
     mutationFn: async () =>
-      await api("twilio-send", { thread_id: item!.thread_id, body: smsText }),
+      await api("twilio-send", {
+        thread_id: item!.thread_id,
+        body: smsText,
+        approval: "USER_CONFIRMED",
+      }),
     onSuccess: () => {
       setSmsText("");
       qc.invalidateQueries({ queryKey: ["messages"] });
@@ -146,7 +150,11 @@ export default function ItemDetail() {
 
   const sendEmail = useMutation({
     mutationFn: async () =>
-      await api("gmail-send", { queue_item_id: id, body: emailText }),
+      await api("gmail-send", {
+        queue_item_id: id,
+        body: emailText,
+        approval: "USER_CONFIRMED",
+      }),
     onSuccess: () => {
       setEmailText("");
       qc.invalidateQueries({ queryKey: ["messages", item?.thread_id] });
