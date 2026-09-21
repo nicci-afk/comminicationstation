@@ -21,6 +21,9 @@ export default async function handler(req: Request): Promise<Response> {
     const threadId = body.thread_id as string;
     const text = String(body.body ?? "").trim();
     if (!text) throw new HttpError(400, "empty message");
+    if (body.approval !== "USER_CONFIRMED") {
+      throw new HttpError(403, "explicit user approval is required before sending");
+    }
 
     const { data: thread } = await db
       .from("threads")
