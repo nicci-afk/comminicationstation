@@ -40,7 +40,7 @@ export default function ItemDetail() {
   const nav = useNavigate();
   const qc = useQueryClient();
   const action = useItemAction();
-  const [draft, setDraft] = useState<{ text: string; notes: string } | null>(null);
+  const [draft, setDraft] = useState<{ text: string; notes: string; verificationNeeded: string[] } | null>(null);
   const [smsText, setSmsText] = useState("");
   const [emailText, setEmailText] = useState("");
   const [error, setError] = useState("");
@@ -121,8 +121,14 @@ export default function ItemDetail() {
   });
 
   const draftMutation = useMutation({
-    mutationFn: async () => await api<{ draft: string; notes: string }>("draft-reply", { queue_item_id: id }),
-    onSuccess: (d) => { setDraft({ text: d.draft, notes: d.notes }); setError(""); },
+    mutationFn: async () => await api<{ draft: string; notes: string; verification_needed?: string[]; approval_state?: string }>(
+      "draft-reply",
+      { queue_item_id: id },
+    ),
+    onSuccess: (d) => {
+      setDraft({ text: d.draft, notes: d.notes, verificationNeeded: d.verification_needed ?? [] });
+      setError("");
+    },
     onError: (e) => setError((e as Error).message),
   });
 
@@ -364,6 +370,17 @@ export default function ItemDetail() {
             </div>
             <pre className="mt-2 text-sm whitespace-pre-wrap font-sans">{draft.text}</pre>
             {draft.notes && <p className="mt-2 text-xs text-indigo-700 dark:text-indigo-400">{draft.notes}</p>}
+            <p className="mt-2 text-[11px] font-medium uppercase tracking-wide text-indigo-600 dark:text-indigo-400">
+              Draft only · review before sending
+            </p>
+            {draft.verificationNeeded.length > 0 && (
+              <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 p-3 dark:border-amber-900 dark:bg-amber-950">
+                <p className="text-xs font-semibold text-amber-800 dark:text-amber-300">Verify before sending</p>
+                <ul className="mt-1 list-disc pl-4 text-xs text-amber-700 dark:text-amber-400">
+                  {draft.verificationNeeded.map((fact) => <li key={fact}>{fact}</li>)}
+                </ul>
+              </div>
+            )}
           </div>
         )}
       </div>
