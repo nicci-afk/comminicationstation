@@ -1,7 +1,18 @@
 import { useEffect } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "./supabase";
-import type { Business, Contact, ContactChannel, ContactStrategy, Message, Profile, QueueEvent, QueueItem } from "./types";
+import type {
+  Business,
+  Contact,
+  ContactChannel,
+  ContactStrategy,
+  MccTodayItem,
+  Message,
+  ObligationSource,
+  Profile,
+  QueueEvent,
+  QueueItem,
+} from "./types";
 
 export function useProfile() {
   return useQuery({
@@ -62,6 +73,40 @@ export function useQueueRealtime() {
       clearInterval(interval);
     };
   }, [qc]);
+}
+
+export function useMccToday() {
+  return useQuery({
+    queryKey: ["mcc-today"],
+    queryFn: async (): Promise<MccTodayItem[]> => {
+      const { data, error } = await supabase
+        .from("mcc_today")
+        .select("*")
+        .order("section_order", { ascending: true })
+        .order("section_rank", { ascending: true });
+      if (error) throw error;
+      return (data ?? []) as MccTodayItem[];
+    },
+    staleTime: 30_000,
+    refetchInterval: 60_000,
+  });
+}
+
+export function useObligationSources(obligationId: string | null) {
+  return useQuery({
+    queryKey: ["obligation-sources", obligationId],
+    enabled: !!obligationId,
+    queryFn: async (): Promise<ObligationSource[]> => {
+      const { data, error } = await supabase
+        .from("obligation_sources")
+        .select("id,obligation_id,source_system,source_type,source_ref,source_url,source_timestamp,content_hash,claim_scope,authoritative_claims,evidence_role,created_at")
+        .eq("obligation_id", obligationId!)
+        .order("created_at", { ascending: true });
+      if (error) throw error;
+      return (data ?? []) as ObligationSource[];
+    },
+    staleTime: 60_000,
+  });
 }
 
 export function useThreadMessages(threadId: string | null) {
