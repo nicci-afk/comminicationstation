@@ -1,0 +1,48 @@
+name: MCC deterministic validation
+
+on:
+  push:
+    branches:
+      - "mcc-v2/**"
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: mcc-validation-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    name: Phase 1 + Phase 1.5 safety suite
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24.14.1"
+          cache: npm
+          cache-dependency-path: apps/web/package-lock.json
+
+      - name: Set up Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: "2.75.0"
+
+      - name: Verify Docker
+        run: docker info
+
+      - name: Run MCC deterministic validation
+        run: bash scripts/validate_mcc_v2_phase1_5_local.sh
+
+      - name: Confirm workflow is validation-only
+        run: |
+          echo "PASS: validation completed."
+          echo "This workflow does not deploy, migrate production, seed data, or send external communication."
