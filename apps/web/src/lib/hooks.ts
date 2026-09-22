@@ -8,7 +8,9 @@ import type {
   ContactStrategy,
   MccTodayItem,
   Message,
+  MccIntegrityStatus,
   ObligationSource,
+  ProductionChangeReceipt,
   Profile,
   QueueEvent,
   QueueItem,
@@ -231,4 +233,37 @@ export function fmtWhen(iso: string | null): string {
   if (diff < 86400_000) return `${Math.round(diff / 3600_000)}h ago`;
   if (diff < 7 * 86400_000) return `${Math.round(diff / 86400_000)}d ago`;
   return d.toLocaleDateString();
+}
+
+
+export function useMccIntegrityStatus() {
+  return useQuery({
+    queryKey: ["mcc-integrity-status"],
+    queryFn: async (): Promise<MccIntegrityStatus | null> => {
+      const { data, error } = await supabase
+        .from("mcc_integrity_status")
+        .select("*")
+        .maybeSingle();
+      if (error) throw error;
+      return data as MccIntegrityStatus | null;
+    },
+    staleTime: 30_000,
+    refetchInterval: 60_000,
+  });
+}
+
+export function useProductionChangeReceipts() {
+  return useQuery({
+    queryKey: ["production-change-receipts"],
+    queryFn: async (): Promise<ProductionChangeReceipt[]> => {
+      const { data, error } = await supabase
+        .from("production_change_receipts")
+        .select("*")
+        .order("created_at", { ascending: false })
+        .limit(25);
+      if (error) throw error;
+      return (data ?? []) as ProductionChangeReceipt[];
+    },
+    staleTime: 60_000,
+  });
 }
