@@ -93,3 +93,20 @@ Security constraints that must never be relaxed without explicit user permission
 - Tim (tim@GHRcontracting.com) must NOT be allowlisted until Nicci says so
 - Bootstrap secret was rotated on 2026-08-17; old value must never be used
 - Service-role code never takes tenant ID from a payload
+
+
+---
+
+## MCC v2 mandatory safety constitution
+
+For all Master Command Center v2 work, `docs/PROJECT_SAFETY_CONSTITUTION.md` is mandatory.
+
+Before any consequential or production write:
+1. Apply `docs/PRODUCTION_CHANGE_CHECKLIST.md`.
+2. Treat uncertainty as a stop condition.
+3. Verify the exact target and exact change set.
+4. Obtain explicit approval for RED actions.
+5. Run immediate post-change verification.
+6. If an incident is suspected, follow `docs/INCIDENT_RECOVERY_PLAYBOOK.md`.
+
+Approval is scoped to the exact consequential action being executed. A prior broad approval must not be stretched to cover materially different targets, rows, commands, deployments, permissions, or side effects.

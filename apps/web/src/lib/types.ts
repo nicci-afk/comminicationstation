@@ -199,3 +199,47 @@ export interface ObligationSource {
   evidence_role: "PRIMARY" | "SUPPORTING" | "CONTEXT";
   created_at: string;
 }
+
+
+export interface MccIntegrityStatus {
+  user_id: string;
+  active_obligations: number;
+  conflicts: number;
+  stale_items: number;
+  obligations_without_sources: number;
+  duplicate_source_refs: number;
+  invalid_state_rows: number;
+  last_audit_event_at: string | null;
+  emergency_stop: boolean | null;
+  emergency_stop_reason: string | null;
+  automation_database_writes_enabled: boolean | null;
+  automation_external_sends_enabled: boolean | null;
+  automation_booking_changes_enabled: boolean | null;
+  automation_financial_actions_enabled: boolean | null;
+  last_reviewed_at: string | null;
+  integrity_state: "HEALTHY" | "NEEDS_ATTENTION" | "FAILED" | "UNKNOWN";
+}
+
+export interface ProductionChangeReceipt {
+  id: string;
+  change_key: string;
+  action_class: "RED";
+  target_system: string;
+  target_environment: string;
+  requested_outcome: string;
+  exact_change_ref: string;
+  expected_impact: Record<string, unknown>;
+  preflight_state: "PENDING" | "PASSED" | "FAILED" | "BLOCKED";
+  approval_state: "NOT_REQUIRED" | "PENDING" | "APPROVED" | "REVOKED";
+  approved_at: string | null;
+  approved_by: string | null;
+  execution_state: "NOT_STARTED" | "RUNNING" | "SUCCEEDED" | "FAILED" | "CANCELLED" | "UNKNOWN";
+  executed_at: string | null;
+  actual_impact: Record<string, unknown> | null;
+  verification_state: "PENDING" | "VERIFIED" | "PARTIALLY_VERIFIED" | "FAILED" | "UNKNOWN" | "CONFLICT";
+  verified_at: string | null;
+  recovery_ref: string | null;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+}
