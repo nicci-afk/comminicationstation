@@ -13,6 +13,7 @@ import Contacts from "./pages/Contacts";
 import ContactDetail from "./pages/ContactDetail";
 import Backlog from "./pages/Backlog";
 import Settings from "./pages/Settings";
+import TrustCenter from "./pages/TrustCenter";
 
 export default function App() {
   const [session, setSession] = useState<Session | null>(null);
@@ -37,6 +38,7 @@ function Shell() {
   const nav = [
     { to: "/today", label: "Today", icon: Sunrise },
     { to: "/executive", label: "Executive", icon: ShieldCheck },
+    { to: "/trust", label: "Trust", icon: ShieldCheck },
     { to: "/queue", label: "Queue", icon: ListTodo },
     { to: "/contacts", label: "Contacts", icon: Users },
     { to: "/backlog", label: "Backlog", icon: Inbox },
@@ -79,6 +81,7 @@ function Shell() {
           <Route path="/" element={<Navigate to="/today" replace />} />
           <Route path="/today" element={<Today />} />
           <Route path="/executive" element={<Executive />} />
+          <Route path="/trust" element={<TrustCenter />} />
           <Route path="/queue" element={<Queue />} />
           <Route path="/item/:id" element={<ItemDetail />} />
           <Route path="/contacts" element={<Contacts />} />
