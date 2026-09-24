@@ -40,7 +40,13 @@ printf '\n[2/6] Initializing isolated temporary Supabase project\n'
   supabase init
 )
 mkdir -p "$TMP/supabase/migrations"
-cp "$ROOT"/supabase/migrations/*.sql "$TMP/supabase/migrations/"
+for migration in "$ROOT"/supabase/migrations/*.sql; do
+  name="$(basename "$migration")"
+  prefix="${name%%_*}"
+  if (( 10#$prefix <= 23 )); then
+    cp "$migration" "$TMP/supabase/migrations/"
+  fi
+done
 
 printf '\n[3/6] Starting local Supabase stack\n'
 (
@@ -69,7 +75,7 @@ DB_CONTAINER="$(
 [[ -n "$DB_CONTAINER" ]] || DB_CONTAINER="$(docker ps --format '{{.ID}} {{.Names}}' | awk '$2 ~ /^supabase_db_/ {print $1; exit}')"
 [[ -n "$DB_CONTAINER" ]] || fail "Could not identify local Supabase Postgres container."
 
-docker exec -i "$DB_CONTAINER"   psql -v ON_ERROR_STOP=1 -U postgres -d postgres   < "$ROOT/tests/mcc_v2_phase1_integration.sql"
+docker exec -i "$DB_CONTAINER" psql -v ON_ERROR_STOP=1 -U postgres -d postgres < "$ROOT/tests/mcc_v2_phase1_integration.sql"
 
 printf '\nPASS: MCC v2 Phase 1 local validation completed successfully.\n'
 printf 'Validated migrations: 0001 through 0023\n'
