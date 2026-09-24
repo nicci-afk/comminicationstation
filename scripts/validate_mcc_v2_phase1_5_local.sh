@@ -15,6 +15,10 @@ echo "== MCC v2 Phase 1 database regression =="
 bash scripts/validate_mcc_v2_phase1_local.sh
 
 echo
+echo "== MCC Phase 2 seed integration validation =="
+bash scripts/validate_mcc_phase2_seed_local.sh
+
+echo
 echo "== Web TypeScript + production build =="
 cd apps/web
 npm ci
