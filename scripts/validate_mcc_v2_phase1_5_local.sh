@@ -21,6 +21,10 @@ echo "== MCC Phase 2 seed integration validation =="
 bash scripts/validate_mcc_phase2_seed_local.sh
 
 echo
+echo "== MCC Phase 3A manual-write integration validation =="
+bash scripts/validate_mcc_phase3_manual_writes_local.sh
+
+echo
 echo "== Web TypeScript + production build =="
 cd apps/web
 npm ci
