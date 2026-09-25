@@ -1,5 +1,5 @@
 export const MCC_POLICY = {
-  executiveUiMode: "READ_ONLY_PREVIEW",
+  executiveUiMode: "MANUAL_WRITES_PREVIEW",
   externalCommunication: "MANUAL_SEND_ONLY",
   automationMode: "PREPARE_ONLY",
   truthMode: "FAIL_CLOSED",
