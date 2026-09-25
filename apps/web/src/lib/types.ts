@@ -243,3 +243,27 @@ export interface ProductionChangeReceipt {
   created_at: string;
   updated_at: string;
 }
+
+
+export interface ObligationEvent {
+  id: number;
+  obligation_id: string;
+  event_type: string;
+  actor_type: "NICCI" | "CHATGPT" | "SYSTEM" | "OTHER";
+  actor_ref: string | null;
+  old_value: Record<string, unknown> | null;
+  new_value: Record<string, unknown> | null;
+  reason: string | null;
+  source_ref: string | null;
+  created_at: string;
+}
+
+export type MccManualAction = "DONE" | "BLOCKED" | "WAITING" | "NEED_HELP" | "UNDO_LAST";
+
+export interface MccManualActionInput {
+  obligation_id: string;
+  action: MccManualAction;
+  reason?: string | null;
+  waiting_on?: string | null;
+  follow_up_at?: string | null;
+}
