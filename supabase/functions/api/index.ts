@@ -29,6 +29,7 @@ import contactLink from "./contact-link.ts";
 import contactMerge from "./contact-merge.ts";
 import agentedgeRelay from "./agentedge-relay.ts";
 import agentedgeImportStrategies from "./agentedge-import-strategies.ts";
+import mccObligationAction from "./mcc-obligation-action.ts";
 import { corsHeaders } from "./_shared/util.ts";
 
 type Handler = (req: Request) => Promise<Response>;
@@ -57,6 +58,7 @@ const routes: Record<string, Handler> = {
   "contact-merge": contactMerge,
   "agentedge-relay": agentedgeRelay,
   "agentedge-import-strategies": agentedgeImportStrategies,
+  "mcc-obligation-action": mccObligationAction,
 };
 
 Deno.serve(async (req) => {
