@@ -201,6 +201,20 @@ export interface ObligationSource {
 }
 
 
+
+export interface ObligationEvent {
+  id: number;
+  obligation_id: string;
+  event_type: string;
+  actor_type: "NICCI" | "CHATGPT" | "SYSTEM" | "OTHER";
+  actor_ref: string | null;
+  old_value: Record<string, unknown> | null;
+  new_value: Record<string, unknown> | null;
+  reason: string | null;
+  source_ref: string | null;
+  created_at: string;
+}
+
 export interface MccIntegrityStatus {
   user_id: string;
   active_obligations: number;
