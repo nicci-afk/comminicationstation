@@ -108,9 +108,9 @@ export default function Executive() {
           <div className="flex items-start gap-3">
             <FileSearch className="w-5 h-5 text-slate-400 mt-0.5" />
             <div>
-              <h2 className="font-semibold">No MCC obligations have been seeded yet</h2>
+              <h2 className="font-semibold">No active MCC obligations are visible</h2>
               <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-                This is intentionally different from “everything is done.” Phase 1.5 is read-only and the executive tables are still empty.
+                This is intentionally different from “everything is done.” If you expected active work here, treat this as a state to verify rather than proof that nothing is outstanding.
               </p>
             </div>
           </div>
