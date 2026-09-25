@@ -9,6 +9,7 @@ import type {
   MccTodayItem,
   Message,
   MccIntegrityStatus,
+  ObligationEvent,
   ObligationSource,
   ProductionChangeReceipt,
   Profile,
@@ -108,6 +109,140 @@ export function useObligationSources(obligationId: string | null) {
       return (data ?? []) as ObligationSource[];
     },
     staleTime: 60_000,
+  });
+}
+
+export function useObligationEvents(obligationId: string | null) {
+  return useQuery({
+    queryKey: ["obligation-events", obligationId],
+    enabled: !!obligationId,
+    queryFn: async (): Promise<ObligationEvent[]> => {
+      const { data, error } = await supabase
+        .from("obligation_events")
+        .select("id,obligation_id,event_type,actor_type,actor_ref,old_value,new_value,reason,source_ref,created_at")
+        .eq("obligation_id", obligationId!)
+        .order("created_at", { ascending: false })
+        .order("id", { ascending: false })
+        .limit(20);
+      if (error) throw error;
+      return (data ?? []) as ObligationEvent[];
+    },
+    staleTime: 15_000,
+  });
+}
+
+export type ObligationManualAction =
+  | { type: "DONE" }
+  | { type: "BLOCKED"; reason: string }
+  | { type: "NEED_HELP" }
+  | { type: "UNDO" };
+
+const OBLIGATION_STATES = new Set([
+  "NOW",
+  "TODAY",
+  "THIS_WEEK",
+  "UPCOMING",
+  "WAITING",
+  "BLOCKED",
+  "SOMEDAY",
+  "DONE",
+  "CANCELLED",
+]);
+
+const EXECUTION_OWNERS = new Set([
+  "NICCI",
+  "CHATGPT",
+  "CHATGPT_PREP",
+  "OTHER",
+  "WAITING",
+]);
+
+export function useObligationAction() {
+  const qc = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (args: { id: string; action: ObligationManualAction }) => {
+      const { data: authData, error: authError } = await supabase.auth.getUser();
+      if (authError) throw authError;
+      const userId = authData.user?.id;
+      if (!userId) throw new Error("No authenticated user");
+
+      let patch: Record<string, string | null>;
+
+      if (args.action.type === "DONE") {
+        patch = {
+          state: "DONE",
+          completed_at: new Date().toISOString(),
+          blocked_reason: null,
+        };
+      } else if (args.action.type === "BLOCKED") {
+        const reason = args.action.reason.trim();
+        if (!reason) throw new Error("A blocker reason is required");
+        patch = {
+          state: "BLOCKED",
+          completed_at: null,
+          blocked_reason: reason,
+        };
+      } else if (args.action.type === "NEED_HELP") {
+        patch = {
+          execution_owner: "CHATGPT_PREP",
+        };
+      } else {
+        const { data: latest, error: eventError } = await supabase
+          .from("obligation_events")
+          .select("old_value")
+          .eq("user_id", userId)
+          .eq("obligation_id", args.id)
+          .eq("event_type", "MANUAL_UPDATE")
+          .eq("actor_ref", "mcc-executive-ui")
+          .order("created_at", { ascending: false })
+          .order("id", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        if (eventError) throw eventError;
+        const oldValue = latest?.old_value as Record<string, unknown> | null | undefined;
+        if (!oldValue) throw new Error("No manual MCC change is available to undo");
+
+        const state = typeof oldValue.state === "string" ? oldValue.state : null;
+        const executionOwner =
+          typeof oldValue.execution_owner === "string" ? oldValue.execution_owner : null;
+        const blockedReason =
+          typeof oldValue.blocked_reason === "string" ? oldValue.blocked_reason : null;
+        const completedAt =
+          typeof oldValue.completed_at === "string" ? oldValue.completed_at : null;
+
+        if (!state || !OBLIGATION_STATES.has(state)) {
+          throw new Error("Undo history contains an invalid prior state");
+        }
+        if (!executionOwner || !EXECUTION_OWNERS.has(executionOwner)) {
+          throw new Error("Undo history contains an invalid prior owner");
+        }
+
+        patch = {
+          state,
+          execution_owner: executionOwner,
+          blocked_reason: blockedReason,
+          completed_at: completedAt,
+        };
+      }
+
+      const { data, error } = await supabase
+        .from("obligations")
+        .update(patch)
+        .eq("id", args.id)
+        .eq("user_id", userId)
+        .select("id")
+        .single();
+
+      if (error) throw error;
+      return data;
+    },
+    onSettled: (_data, _error, variables) => {
+      qc.invalidateQueries({ queryKey: ["mcc-today"] });
+      qc.invalidateQueries({ queryKey: ["mcc-integrity-status"] });
+      qc.invalidateQueries({ queryKey: ["obligation-events", variables.id] });
+    },
   });
 }
 
