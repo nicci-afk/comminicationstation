@@ -10,7 +10,7 @@ import {
   ShieldCheck,
   Sparkles,
 } from "lucide-react";
-import { useMccToday, useObligationSources } from "../lib/hooks";
+import { useMccObligationAction, useMccToday, useObligationEvents, useObligationSources } from "../lib/hooks";
 import { MCC_POLICY } from "../lib/mccPolicy";
 import type { MccTodayItem } from "../lib/types";
 
@@ -150,6 +150,49 @@ export default function Executive() {
 
 function ExecutiveCard({ item, prominent = false }: { item: MccTodayItem; prominent?: boolean }) {
   const [showEvidence, setShowEvidence] = useState(false);
+  const [actionMessage, setActionMessage] = useState<string | null>(null);
+  const action = useMccObligationAction();
+
+  async function runAction(kind: "DONE" | "BLOCKED" | "WAITING" | "NEED_HELP" | "UNDO_LAST") {
+    setActionMessage(null);
+    try {
+      if (kind === "DONE") {
+        if (!window.confirm(`Mark “${item.title}” done? This creates an audit event and can be undone.`)) return;
+        await action.mutateAsync({ obligation_id: item.obligation_id, action: "DONE" });
+      } else if (kind === "BLOCKED") {
+        const reason = window.prompt("What is blocking this obligation?");
+        if (!reason?.trim()) return;
+        await action.mutateAsync({ obligation_id: item.obligation_id, action: "BLOCKED", reason: reason.trim() });
+      } else if (kind === "WAITING") {
+        const waitingOn = window.prompt("Who or what are we waiting on?");
+        if (!waitingOn?.trim()) return;
+        const followUp = window.prompt("Optional follow-up date/time (leave blank for none). Example: 2026-09-28T09:00");
+        let followUpAt: string | null = null;
+        if (followUp?.trim()) {
+          const parsed = new Date(followUp.trim());
+          if (Number.isNaN(parsed.getTime())) {
+            setActionMessage("That follow-up date could not be understood. Nothing changed.");
+            return;
+          }
+          followUpAt = parsed.toISOString();
+        }
+        await action.mutateAsync({
+          obligation_id: item.obligation_id,
+          action: "WAITING",
+          waiting_on: waitingOn.trim(),
+          follow_up_at: followUpAt,
+        });
+      } else if (kind === "NEED_HELP") {
+        await action.mutateAsync({ obligation_id: item.obligation_id, action: "NEED_HELP" });
+      } else {
+        if (!window.confirm("Undo the most recent reversible manual change to this obligation?")) return;
+        await action.mutateAsync({ obligation_id: item.obligation_id, action: "UNDO_LAST" });
+      }
+      setActionMessage(kind === "UNDO_LAST" ? "Last manual change undone." : "Change saved and audited.");
+    } catch (e) {
+      setActionMessage(e instanceof Error ? e.message : "Change failed. Nothing should be assumed updated.");
+    }
+  }
 
   return (
     <article
@@ -217,6 +260,33 @@ function ExecutiveCard({ item, prominent = false }: { item: MccTodayItem; promin
         </div>
       </div>
 
+      <div className="mt-4 flex flex-wrap gap-2">
+        <button type="button" disabled={action.isPending} onClick={() => runAction("DONE")}
+          className="rounded-lg bg-emerald-600 px-3 py-2 text-sm font-medium text-white disabled:opacity-50">
+          Done
+        </button>
+        <button type="button" disabled={action.isPending} onClick={() => runAction("WAITING")}
+          className="rounded-lg border border-slate-300 dark:border-slate-700 px-3 py-2 text-sm font-medium disabled:opacity-50">
+          Waiting
+        </button>
+        <button type="button" disabled={action.isPending} onClick={() => runAction("BLOCKED")}
+          className="rounded-lg border border-slate-300 dark:border-slate-700 px-3 py-2 text-sm font-medium disabled:opacity-50">
+          Blocked
+        </button>
+        <button type="button" disabled={action.isPending} onClick={() => runAction("NEED_HELP")}
+          className="rounded-lg border border-indigo-300 dark:border-indigo-800 px-3 py-2 text-sm font-medium text-indigo-700 dark:text-indigo-300 disabled:opacity-50">
+          Need help
+        </button>
+        <button type="button" disabled={action.isPending} onClick={() => runAction("UNDO_LAST")}
+          className="rounded-lg px-3 py-2 text-sm font-medium text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-50">
+          Undo last change
+        </button>
+      </div>
+
+      {actionMessage && (
+        <div className="mt-2 text-xs text-slate-500 dark:text-slate-400">{actionMessage}</div>
+      )}
+
       <button
         type="button"
         onClick={() => setShowEvidence((v) => !v)}
@@ -234,6 +304,7 @@ function ExecutiveCard({ item, prominent = false }: { item: MccTodayItem; promin
 
 function EvidencePanel({ obligationId }: { obligationId: string }) {
   const { data: sources = [], isLoading, error } = useObligationSources(obligationId);
+  const { data: events = [] } = useObligationEvents(obligationId);
 
   if (isLoading) return <div className="mt-3 text-xs text-slate-400">Loading evidence…</div>;
   if (error) {
@@ -277,6 +348,22 @@ function EvidencePanel({ obligationId }: { obligationId: string }) {
       <div className="flex items-center gap-1 text-[11px] text-slate-400">
         <Sparkles className="w-3 h-3" /> Evidence display is descriptive; it does not upgrade verification automatically.
       </div>
+      {events.length > 0 && (
+        <div className="pt-2">
+          <div className="text-xs font-semibold text-slate-500 dark:text-slate-400">Recent history</div>
+          <div className="mt-2 space-y-1.5">
+            {events.slice(0, 8).map((event) => (
+              <div key={event.id} className="rounded-lg bg-slate-50 dark:bg-slate-800/60 px-3 py-2 text-xs">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <span className="font-medium">{event.event_type.replaceAll("_", " ").toLowerCase()}</span>
+                  <span className="text-slate-400">{formatDateTime(event.created_at)}</span>
+                </div>
+                {event.reason && <div className="mt-1 text-slate-500 dark:text-slate-400">{event.reason}</div>}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
