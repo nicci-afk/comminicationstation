@@ -17,13 +17,13 @@ const hooks = read("apps/web/src/lib/hooks.ts");
 
 const checks = [
   ["Executive route is parallel, not a Today replacement", app.includes('path="/executive"') && app.includes('path="/today"')],
-  ["Executive UI is read-only preview", policy.includes('executiveUiMode: "READ_ONLY_PREVIEW"')],
+  ["Executive UI is controlled manual-write preview", policy.includes('executiveUiMode: "MANUAL_WRITES_PREVIEW"')],
   ["External communication policy is manual-send-only", policy.includes('externalCommunication: "MANUAL_SEND_ONLY"')],
-  ["Executive empty state does not claim work is complete", executive.includes("No MCC obligations have been seeded yet") && executive.includes("different from “everything is done.”")],
+  ["Executive empty state does not claim work is complete", executive.includes("No active MCC obligations are visible") && executive.includes("different from “everything is done.”")],
   ["Executive view surfaces verification", executive.includes("verification_state") && executive.includes("Show evidence")],
   ["Executive view surfaces deterministic why-now reasons", executive.includes("Why now") && executive.includes("priority_reasons")],
   ["Executive view includes Focus mode", executive.includes("Focus mode") && executive.includes("WAITING_ON_OTHERS")],
-  ["MCC hooks are read-only queries", hooks.includes('.from("mcc_today")') && hooks.includes('.from("obligation_sources")') && !hooks.includes('.from("obligations").insert')],
+  ["MCC browser keeps direct canonical writes out of hooks", hooks.includes('.from("mcc_today")') && hooks.includes('.from("obligation_sources")') && !hooks.includes('.from("obligations").insert') && !hooks.includes('.from("obligations").update')],
   ["Draft prompt preserves unknowns", prompts.includes("Absence of evidence is UNKNOWN")],
   ["Draft prompt forbids consequential fabrication", prompts.includes("Never invent or assume pricing, dates, availability")],
   ["Draft response exposes verification requirements", draft.includes("verification_needed") && draft.includes('approval_state: "DRAFT_ONLY"')],

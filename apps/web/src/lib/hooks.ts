@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { supabase } from "./supabase";
+import { api, supabase } from "./supabase";
 import type {
   Business,
   Contact,
@@ -10,6 +10,8 @@ import type {
   Message,
   MccIntegrityStatus,
   ObligationSource,
+  ObligationEvent,
+  MccManualActionInput,
   ProductionChangeReceipt,
   Profile,
   QueueEvent,
@@ -265,5 +267,42 @@ export function useProductionChangeReceipts() {
       return (data ?? []) as ProductionChangeReceipt[];
     },
     staleTime: 60_000,
+  });
+}
+
+
+export function useObligationEvents(obligationId: string | null) {
+  return useQuery({
+    queryKey: ["obligation-events", obligationId],
+    enabled: !!obligationId,
+    queryFn: async (): Promise<ObligationEvent[]> => {
+      const { data, error } = await supabase
+        .from("obligation_events")
+        .select("id,obligation_id,event_type,actor_type,actor_ref,old_value,new_value,reason,source_ref,created_at")
+        .eq("obligation_id", obligationId!)
+        .order("created_at", { ascending: false })
+        .limit(25);
+      if (error) throw error;
+      return (data ?? []) as ObligationEvent[];
+    },
+    staleTime: 15_000,
+  });
+}
+
+export function useMccObligationAction() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (args: MccManualActionInput) =>
+      api<{ ok: boolean; obligation_id: string; state?: string; execution_owner?: string; event_type?: string }>(
+        "mcc-obligation-action",
+        args,
+      ),
+    onSuccess: async (_data, variables) => {
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: ["mcc-today"] }),
+        qc.invalidateQueries({ queryKey: ["mcc-integrity-status"] }),
+        qc.invalidateQueries({ queryKey: ["obligation-events", variables.obligation_id] }),
+      ]);
+    },
   });
 }
