@@ -1,0 +1,139 @@
+name: MCC Phase 3A production release
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/mcc-phase3a-production.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: mcc-phase3a-production
+  cancel-in-progress: false
+
+env:
+  APPROVED_PHASE3A_COMMIT: "5d65777a64bd87bb44c57c2ce1d95e378154e7ac"
+  SUPABASE_PROJECT_REF: "bgpjpomqrnwsdmrofudb"
+  VERCEL_ORG_ID: "team_VyloIj0OJAb3IN63CmPGvqeG"
+  VERCEL_PROJECT_ID: "prj_kypK3A8FOS9XdLadXmAr6pUHW7hA"
+  VERCEL_CLI_VERSION: "59.19.1"
+
+jobs:
+  preflight:
+    name: Verify approved release lineage
+    runs-on: ubuntu-latest
+    outputs:
+      approved: ${{ steps.lineage.outputs.approved }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - id: lineage
+        name: Verify Phase 3A merge is an ancestor
+        shell: bash
+        run: |
+          set -euo pipefail
+          if git merge-base --is-ancestor "$APPROVED_PHASE3A_COMMIT" HEAD; then
+            echo "approved=true" >> "$GITHUB_OUTPUT"
+            echo "PASS: approved Phase 3A merge is in this production runner lineage."
+          else
+            echo "approved=false" >> "$GITHUB_OUTPUT"
+            echo "FAIL: approved Phase 3A merge is not in this lineage." >&2
+            exit 1
+          fi
+
+      - name: Verify required deployment secrets exist
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$SUPABASE_ACCESS_TOKEN" || { echo "Missing GitHub Actions secret: SUPABASE_ACCESS_TOKEN" >&2; exit 1; }
+          test -n "$VERCEL_TOKEN" || { echo "Missing GitHub Actions secret: VERCEL_TOKEN" >&2; exit 1; }
+          echo "PASS: required deployment credentials are available."
+
+  deploy-supabase-api:
+    name: Deploy Supabase API
+    needs: preflight
+    if: needs.preflight.outputs.approved == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: supabase/setup-cli@v1
+        with:
+          version: "2.75.0"
+
+      - name: Initialize transient Supabase config if needed
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ ! -f supabase/config.toml ]; then
+            supabase init
+          fi
+
+      - name: Deploy exact merged API bundle
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          supabase functions deploy api             --project-ref "$SUPABASE_PROJECT_REF"             --no-verify-jwt
+
+  deploy-vercel-web:
+    name: Deploy Vercel web
+    needs: [preflight, deploy-supabase-api]
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/web
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24.14.1"
+          cache: npm
+          cache-dependency-path: apps/web/package-lock.json
+
+      - name: Install app dependencies
+        run: npm ci
+
+      - name: Install pinned Vercel CLI
+        run: npm install --global "vercel@$VERCEL_CLI_VERSION"
+
+      - name: Pull production project settings
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: vercel pull --yes --environment=production --token="$VERCEL_TOKEN"
+
+      - name: Build production artifact
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: vercel build --prod --token="$VERCEL_TOKEN"
+
+      - name: Deploy prebuilt production artifact
+        id: deploy
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          url="$(vercel deploy --prebuilt --prod --yes --token="$VERCEL_TOKEN")"
+          echo "url=$url" >> "$GITHUB_OUTPUT"
+          echo "Production URL: $url"
+
+      - name: Smoke-test Executive and Trust routes
+        env:
+          URL: ${{ steps.deploy.outputs.url }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error --location "$URL/executive" >/dev/null
+          curl --fail --silent --show-error --location "$URL/trust" >/dev/null
+          echo "PASS: deployed routes returned successful responses."
