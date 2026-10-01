@@ -58,37 +58,9 @@ jobs:
           test -n "$VERCEL_TOKEN" || { echo "Missing GitHub Actions secret: VERCEL_TOKEN" >&2; exit 1; }
           echo "PASS: required deployment credentials are available."
 
-  deploy-supabase-api:
-    name: Deploy Supabase API
-    needs: preflight
-    if: needs.preflight.outputs.approved == 'true'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: supabase/setup-cli@v1
-        with:
-          version: "2.75.0"
-
-      - name: Initialize transient Supabase config if needed
-        shell: bash
-        run: |
-          set -euo pipefail
-          if [ ! -f supabase/config.toml ]; then
-            supabase init
-          fi
-
-      - name: Deploy exact merged API bundle
-        env:
-          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          supabase functions deploy api             --project-ref "$SUPABASE_PROJECT_REF"             --no-verify-jwt
-
   deploy-vercel-web:
     name: Deploy Vercel web
-    needs: [preflight, deploy-supabase-api]
+    needs: preflight
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -140,6 +112,9 @@ jobs:
                 commitSha: $sha,
                 ci: true,
                 ciType: "github-actions",
+                rootDirectory: "apps/web"
+              },
+              projectSettings: {
                 rootDirectory: "apps/web"
               }
             }')"
