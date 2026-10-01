@@ -12,6 +12,8 @@ import {
 } from "lucide-react";
 import { useMccObligationAction, useMccToday, useObligationEvents, useObligationSources } from "../lib/hooks";
 import { MCC_POLICY } from "../lib/mccPolicy";
+import FastCapture from "../components/FastCapture";
+import { dailyItems, selectFocus } from "../lib/mccWorkflow";
 import type { MccTodayItem } from "../lib/types";
 
 const SECTION_LABELS: Record<string, string> = {
@@ -39,27 +41,30 @@ function formatDateTime(value: string | null) {
 export default function Executive() {
   const { data: items = [], isLoading, error } = useMccToday();
   const [focusMode, setFocusMode] = useState(false);
+  const [expanded, setExpanded] = useState(false);
+  const [receipt, setReceipt] = useState<{ id: string; title: string } | null>(null);
+  const [undoMessage, setUndoMessage] = useState("");
+  const undo = useMccObligationAction();
+  async function undoRecent() {
+    if (!receipt) return;
+    try {
+      await undo.mutateAsync({ obligation_id: receipt.id, action: "UNDO_LAST" });
+      setReceipt(null); setUndoMessage("Last change undone.");
+    } catch (e) { setUndoMessage(e instanceof Error ? e.message : "Undo unconfirmed."); }
+  }
+  function saved(item: MccTodayItem) { setReceipt({ id: item.obligation_id, title: item.title }); setUndoMessage(""); }
 
   const grouped = useMemo(() => {
     const result = new Map<string, MccTodayItem[]>();
-    for (const item of items) {
+    for (const item of dailyItems(items, expanded)) {
       const list = result.get(item.section) ?? [];
       list.push(item);
       result.set(item.section, list);
     }
     return result;
-  }, [items]);
+  }, [items, expanded]);
 
-  const focusItem = useMemo(
-    () =>
-      items.find(
-        (item) =>
-          item.section !== "WAITING_ON_OTHERS" &&
-          item.section !== "BLOCKED" &&
-          item.section !== "SAFE_TO_DEFER",
-      ) ?? null,
-    [items],
-  );
+  const focusItem = selectFocus(items);
 
   if (isLoading) {
     return <div className="p-8 text-slate-500 dark:text-slate-400">Loading executive state…</div>;
@@ -74,7 +79,7 @@ export default function Executive() {
             <h1 className="text-2xl font-bold">Executive</h1>
           </div>
           <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-            Verified executive state only. Communication queue and historical inbox noise stay separate.
+            Your next actions, captures, and follow-ups in one place.
           </p>
         </div>
         <button
@@ -87,6 +92,12 @@ export default function Executive() {
         </button>
       </div>
 
+      <FastCapture />
+      <p className="mt-4 text-sm text-slate-500">Start with urgent exceptions, focus on one action, then check waiting follow-ups before finishing your day.</p>
+      {receipt && <div role="status" className="mt-3 rounded-lg bg-emerald-50 dark:bg-emerald-950 p-3 text-sm">
+        Saved: {receipt.title}. <button type="button" onClick={undoRecent} disabled={undo.isPending} className="underline">Undo last change</button>
+      </div>}
+      {undoMessage && <p role="status" className="text-sm">{undoMessage}</p>}
       <div className="mt-4 flex flex-wrap gap-2 text-xs">
         <span className="px-2.5 py-1 rounded-full bg-indigo-50 text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300">
           {MCC_POLICY.executiveUiMode.replaceAll("_", " ").toLowerCase()}
@@ -118,15 +129,16 @@ export default function Executive() {
       ) : focusMode ? (
         <div className="mt-6">
           {focusItem ? (
-            <ExecutiveCard item={focusItem} prominent />
+            <ExecutiveCard key={focusItem.obligation_id} item={focusItem} prominent onSaved={saved} />
           ) : (
             <div className="rounded-xl border border-slate-200 dark:border-slate-700 p-5 text-sm text-slate-500 dark:text-slate-400">
-              No currently actionable obligation. Waiting and blocked items remain visible in the full view.
+              No eligible action for you right now. Review waiting items, blockers, captures, and verification exceptions in the full view.
             </div>
           )}
         </div>
       ) : (
         <div className="mt-8 space-y-8">
+          <button type="button" onClick={() => setExpanded(v => !v)} className="text-sm underline">{expanded ? "Show daily summary" : "Show all active obligations"}</button>
           {Array.from(grouped.entries()).map(([section, sectionItems]) => (
             <section key={section}>
               <div className="flex items-center justify-between mb-2">
@@ -137,7 +149,7 @@ export default function Executive() {
               </div>
               <div className="space-y-3">
                 {sectionItems.map((item) => (
-                  <ExecutiveCard key={item.obligation_id} item={item} />
+                  <ExecutiveCard key={item.obligation_id} item={item} onSaved={saved} />
                 ))}
               </div>
             </section>
@@ -148,7 +160,11 @@ export default function Executive() {
   );
 }
 
-function ExecutiveCard({ item, prominent = false }: { item: MccTodayItem; prominent?: boolean }) {
+function ExecutiveCard({ item, prominent = false, onSaved }: { item: MccTodayItem; prominent?: boolean; onSaved: (item: MccTodayItem) => void }) {
+  const [form, setForm] = useState<"BLOCKED" | "WAITING" | null>(null);
+  const [reason, setReason] = useState("");
+  const [waitingOn, setWaitingOn] = useState("");
+  const [followUp, setFollowUp] = useState("");
   const [showEvidence, setShowEvidence] = useState(false);
   const [actionMessage, setActionMessage] = useState<string | null>(null);
   const action = useMccObligationAction();
@@ -157,37 +173,20 @@ function ExecutiveCard({ item, prominent = false }: { item: MccTodayItem; promin
     setActionMessage(null);
     try {
       if (kind === "DONE") {
-        if (!window.confirm(`Mark “${item.title}” done? This creates an audit event and can be undone.`)) return;
         await action.mutateAsync({ obligation_id: item.obligation_id, action: "DONE" });
       } else if (kind === "BLOCKED") {
-        const reason = window.prompt("What is blocking this obligation?");
-        if (!reason?.trim()) return;
+        if (!reason.trim()) { setActionMessage("A blocker is required."); return; }
         await action.mutateAsync({ obligation_id: item.obligation_id, action: "BLOCKED", reason: reason.trim() });
       } else if (kind === "WAITING") {
-        const waitingOn = window.prompt("Who or what are we waiting on?");
-        if (!waitingOn?.trim()) return;
-        const followUp = window.prompt("Optional follow-up date/time (leave blank for none). Example: 2026-09-28T09:00");
-        let followUpAt: string | null = null;
-        if (followUp?.trim()) {
-          const parsed = new Date(followUp.trim());
-          if (Number.isNaN(parsed.getTime())) {
-            setActionMessage("That follow-up date could not be understood. Nothing changed.");
-            return;
-          }
-          followUpAt = parsed.toISOString();
-        }
-        await action.mutateAsync({
-          obligation_id: item.obligation_id,
-          action: "WAITING",
-          waiting_on: waitingOn.trim(),
-          follow_up_at: followUpAt,
-        });
-      } else if (kind === "NEED_HELP") {
-        await action.mutateAsync({ obligation_id: item.obligation_id, action: "NEED_HELP" });
+        if (!waitingOn.trim()) { setActionMessage("Who or what are you waiting on?"); return; }
+        const parsed = followUp ? new Date(followUp) : null;
+        if (parsed && Number.isNaN(parsed.getTime())) { setActionMessage("Invalid follow-up time. Nothing changed."); return; }
+        await action.mutateAsync({ obligation_id: item.obligation_id, action: "WAITING", waiting_on: waitingOn.trim(), follow_up_at: parsed?.toISOString() ?? null });
       } else {
-        if (!window.confirm("Undo the most recent reversible manual change to this obligation?")) return;
-        await action.mutateAsync({ obligation_id: item.obligation_id, action: "UNDO_LAST" });
+        await action.mutateAsync({ obligation_id: item.obligation_id, action: kind });
       }
+      setForm(null);
+      if (kind !== "UNDO_LAST") onSaved(item);
       setActionMessage(kind === "UNDO_LAST" ? "Last manual change undone." : "Change saved and audited.");
     } catch (e) {
       setActionMessage(e instanceof Error ? e.message : "Change failed. Nothing should be assumed updated.");
@@ -265,11 +264,11 @@ function ExecutiveCard({ item, prominent = false }: { item: MccTodayItem; promin
           className="rounded-lg bg-emerald-600 px-3 py-2 text-sm font-medium text-white disabled:opacity-50">
           Done
         </button>
-        <button type="button" disabled={action.isPending} onClick={() => runAction("WAITING")}
+        {!prominent && <button type="button" disabled={action.isPending} onClick={() => setForm("WAITING")}
           className="rounded-lg border border-slate-300 dark:border-slate-700 px-3 py-2 text-sm font-medium disabled:opacity-50">
           Waiting
-        </button>
-        <button type="button" disabled={action.isPending} onClick={() => runAction("BLOCKED")}
+        </button>}
+        <button type="button" disabled={action.isPending} onClick={() => setForm("BLOCKED")}
           className="rounded-lg border border-slate-300 dark:border-slate-700 px-3 py-2 text-sm font-medium disabled:opacity-50">
           Blocked
         </button>
@@ -277,12 +276,27 @@ function ExecutiveCard({ item, prominent = false }: { item: MccTodayItem; promin
           className="rounded-lg border border-indigo-300 dark:border-indigo-800 px-3 py-2 text-sm font-medium text-indigo-700 dark:text-indigo-300 disabled:opacity-50">
           Need help
         </button>
-        <button type="button" disabled={action.isPending} onClick={() => runAction("UNDO_LAST")}
+        {!prominent && <button type="button" disabled={action.isPending} onClick={() => runAction("UNDO_LAST")}
           className="rounded-lg px-3 py-2 text-sm font-medium text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-50">
           Undo last change
-        </button>
+        </button>}
       </div>
 
+      {form && <form className="mt-3 space-y-2" onSubmit={e => { e.preventDefault(); void runAction(form); }}>
+        {form === "BLOCKED" ? <label className="block text-sm">What is blocking this?
+          <input autoFocus required value={reason} maxLength={2000} onChange={e => setReason(e.target.value)} className="mt-1 block w-full rounded-lg border bg-transparent p-2" />
+        </label> : <>
+          <label className="block text-sm">Who or what are you waiting on?
+            <input autoFocus required value={waitingOn} maxLength={500} onChange={e => setWaitingOn(e.target.value)} className="mt-1 block w-full rounded-lg border bg-transparent p-2" />
+          </label>
+          <label className="block text-sm">Follow-up (optional, your device's local time)
+            <input type="datetime-local" value={followUp} onChange={e => setFollowUp(e.target.value)} className="mt-1 rounded-lg border bg-transparent p-2" />
+          </label>
+        </>}
+        <button disabled={action.isPending} type="submit" className="rounded-lg bg-indigo-600 px-3 py-2 text-white text-sm">Save</button>
+        <button disabled={action.isPending} type="button" onClick={() => setForm(null)} className="ml-2 text-sm underline">Cancel</button>
+      </form>}
+      <p className="mt-2 text-xs text-slate-500">Status: {item.state.replaceAll("_", " ").toLowerCase()}{item.waiting_on ? ` · Waiting on: ${item.waiting_on}` : ""}{item.follow_up_at ? ` · Follow-up: ${formatDateTime(item.follow_up_at)}` : ""}</p>
       {actionMessage && (
         <div className="mt-2 text-xs text-slate-500 dark:text-slate-400">{actionMessage}</div>
       )}
@@ -304,7 +318,7 @@ function ExecutiveCard({ item, prominent = false }: { item: MccTodayItem; promin
 
 function EvidencePanel({ obligationId }: { obligationId: string }) {
   const { data: sources = [], isLoading, error } = useObligationSources(obligationId);
-  const { data: events = [] } = useObligationEvents(obligationId);
+  const { data: events = [], error: eventsError } = useObligationEvents(obligationId);
 
   if (isLoading) return <div className="mt-3 text-xs text-slate-400">Loading evidence…</div>;
   if (error) {
@@ -348,6 +362,7 @@ function EvidencePanel({ obligationId }: { obligationId: string }) {
       <div className="flex items-center gap-1 text-[11px] text-slate-400">
         <Sparkles className="w-3 h-3" /> Evidence display is descriptive; it does not upgrade verification automatically.
       </div>
+      {eventsError && <p role="alert" className="text-xs text-red-600">History unavailable. Do not assume there were no changes.</p>}
       {events.length > 0 && (
         <div className="pt-2">
           <div className="text-xs font-semibold text-slate-500 dark:text-slate-400">Recent history</div>

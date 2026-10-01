@@ -1,4 +1,5 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { NavLink, Navigate, Route, Routes } from "react-router-dom";
 import type { Session } from "@supabase/supabase-js";
 import { Inbox, Landmark, ListTodo, Settings as SettingsIcon, ShieldCheck, Sunrise, Users } from "lucide-react";
@@ -17,20 +18,27 @@ import TrustCenter from "./pages/TrustCenter";
 
 export default function App() {
   const [session, setSession] = useState<Session | null>(null);
+  const qc = useQueryClient();
+  const userRef = useRef<string | null>(null);
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
+    function applySession(value: Session | null) {
+      if (userRef.current !== (value?.user.id ?? null)) qc.clear();
+      userRef.current = value?.user.id ?? null;
+      setSession(value);
+    }
     supabase.auth.getSession().then(({ data }) => {
-      setSession(data.session);
+      applySession(data.session);
       setReady(true);
     });
-    const { data: sub } = supabase.auth.onAuthStateChange((_e, s) => setSession(s));
+    const { data: sub } = supabase.auth.onAuthStateChange((_e, s) => applySession(s));
     return () => sub.subscription.unsubscribe();
-  }, []);
+  }, [qc]);
 
   if (!ready) return <div className="p-10 text-slate-500 dark:text-slate-400">Loading…</div>;
   if (!session) return <Login />;
-  return <Shell />;
+  return <Shell key={session.user.id} />;
 }
 
 function Shell() {
