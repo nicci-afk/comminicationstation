@@ -17,7 +17,7 @@ const a='30000000-0000-4000-8000-000000000001',b='30000000-0000-4000-8000-000000
 let res=await admin.from('obligations').insert([
  {id:a,user_id:own,type:'ACTION',title:'First browser action',state:'TODAY',next_action:'Verify itinerary with supplier',verification_state:'VERIFIED',priority:80},
  {id:b,user_id:own,type:'ACTION',title:'Second browser action',state:'TODAY',next_action:'Prepare internal notes',verification_state:'VERIFIED',priority:40},
- {user_id:other,type:'ACTION',title:'Other account private action',state:'TODAY',next_action:'Other task',verification_state:'VERIFIED'}
+ {id:'30000000-0000-4000-8000-000000000003',priority:0,user_id:other,type:'ACTION',title:'Other account private action',state:'TODAY',next_action:'Other task',verification_state:'VERIFIED'}
 ]);assert.equal(res.error,null);
 res=await admin.from('obligation_sources').insert([a,b].map((id)=>({user_id:own,obligation_id:id,source_system:'LOCAL_TEST',source_ref:id,evidence_role:'PRIMARY',claim_scope:['executive_state'],authoritative_claims:['executive_state']})));assert.equal(res.error,null);
 const base=cfg.API_URL+'/functions/v1/api/';
@@ -48,11 +48,11 @@ await page.getByRole('button',{name:'Need help',exact:true}).click();await page.
 assert.equal((await admin.from('obligations').select('execution_owner').eq('id',b).single()).data.execution_owner,'CHATGPT_PREP');
 await page.getByLabel("What's on your mind?").fill('Lois tomorrow — keep this raw note');await page.getByRole('button',{name:'Capture',exact:true}).click();await page.getByText('Captured. Review when ready.',{exact:true}).waitFor();
 await page.getByRole('button',{name:'Review captures (1)',exact:true}).click();await page.getByText('Lois tomorrow — keep this raw note',{exact:true}).waitFor();
-await page.getByLabel('Confirm one next action').fill('Confirm Moorea transfer details');await page.getByRole('button',{name:"Add to today's actions",exact:true}).click();await page.getByText('Confirm Moorea transfer details',{exact:true}).waitFor();
+await page.getByLabel('Confirm one next action').fill('Confirm Moorea transfer details');await page.getByRole('button',{name:"Add to today's actions",exact:true}).click();await page.getByRole('heading',{name:'Confirm Moorea transfer details',exact:true}).waitFor();
 const captured=(await admin.from('obligations').select('*').eq('description','Lois tomorrow — keep this raw note').single()).data;
 assert.equal(captured.due_at,null);assert.equal(captured.verification_state,'PARTIALLY_VERIFIED');
 assert.equal((await admin.from('obligation_events').select('id',{count:'exact'}).eq('obligation_id',captured.id)).count,2);
-await page.reload();await page.getByText('Confirm Moorea transfer details',{exact:true}).waitFor();
+await page.reload();await page.getByRole('heading',{name:'Confirm Moorea transfer details',exact:true}).waitFor();
 fs.mkdirSync('test-results',{recursive:true});await page.screenshot({path:'test-results/phase3b-desktop.png',fullPage:true});
 await page.setViewportSize({width:390,height:844});await page.screenshot({path:'test-results/phase3b-mobile.png',fullPage:true});
 assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth),'mobile horizontal overflow');

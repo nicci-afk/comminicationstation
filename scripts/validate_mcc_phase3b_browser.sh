@@ -3,6 +3,11 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 MCC_TEST_DIR="$(mktemp -d /tmp/mcc-phase3b-browser.XXXXXX)"
 cleanup() {
+  MCC_EXIT_CODE=$?
+  if [[ "$MCC_EXIT_CODE" -ne 0 ]]; then
+    [[ ! -f "$MCC_TEST_DIR/edge.log" ]] || tail -60 "$MCC_TEST_DIR/edge.log"
+    [[ ! -f "$MCC_TEST_DIR/web.log" ]] || tail -30 "$MCC_TEST_DIR/web.log"
+  fi
   [[ -z "${WEB_PID:-}" ]] || kill "$WEB_PID" 2>/dev/null || true
   [[ -z "${EDGE_PID:-}" ]] || kill "$EDGE_PID" 2>/dev/null || true
   "$ROOT/node_modules/.bin/agent-browser" close >/dev/null 2>&1 || true
