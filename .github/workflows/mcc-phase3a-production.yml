@@ -90,23 +90,8 @@ jobs:
     name: Deploy Vercel web
     needs: [preflight, deploy-supabase-api]
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: apps/web
     steps:
       - uses: actions/checkout@v4
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "24.14.1"
-          cache: npm
-          cache-dependency-path: apps/web/package-lock.json
-
-      - name: Install app dependencies
-        run: npm ci
-
-      - name: Install pinned Vercel CLI
-        run: npm install --global "vercel@$VERCEL_CLI_VERSION"
 
       - name: Verify Vercel token can access the target project
         env:
@@ -114,7 +99,9 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          code="$(curl --silent --show-error --output /tmp/vercel-project.json --write-out '%{http_code}'             --header "Authorization: Bearer $VERCEL_TOKEN"             "https://api.vercel.com/v9/projects/$VERCEL_PROJECT_ID?teamId=$VERCEL_ORG_ID")"
+          code="$(curl --silent --show-error --output /tmp/vercel-project.json --write-out '%{http_code}' \
+            --header "Authorization: Bearer $VERCEL_TOKEN" \
+            "https://api.vercel.com/v9/projects/$VERCEL_PROJECT_ID?teamId=$VERCEL_ORG_ID")"
           if [ "$code" != "200" ]; then
             echo "Vercel token cannot access the AgentEdge/message-command-center project (HTTP $code)." >&2
             cat /tmp/vercel-project.json >&2
@@ -122,26 +109,97 @@ jobs:
           fi
           echo "PASS: Vercel token can access the target project."
 
-      - name: Pull production project settings
-        env:
-          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-        run: vercel pull --yes --environment=production --scope="$VERCEL_TEAM_SLUG" --project="$VERCEL_PROJECT_ID" --token="$VERCEL_TOKEN"
-
-      - name: Build production artifact
-        env:
-          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-        run: vercel build --prod --scope="$VERCEL_TEAM_SLUG" --project="$VERCEL_PROJECT_ID" --token="$VERCEL_TOKEN"
-
-      - name: Deploy prebuilt production artifact
+      - name: Create production deployment from GitHub source
         id: deploy
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
         shell: bash
         run: |
           set -euo pipefail
-          url="$(vercel deploy --prebuilt --prod --yes --scope="$VERCEL_TEAM_SLUG" --project="$VERCEL_PROJECT_ID" --token="$VERCEL_TOKEN")"
-          echo "url=$url" >> "$GITHUB_OUTPUT"
-          echo "Production URL: $url"
+
+          payload="$(jq -n \
+            --arg name "message-command-center" \
+            --arg project "$VERCEL_PROJECT_ID" \
+            --arg org "nicci-afk" \
+            --arg repo "comminicationstation" \
+            --arg ref "main" \
+            --arg sha "$GITHUB_SHA" \
+            '{
+              name: $name,
+              project: $project,
+              target: "production",
+              gitSource: {
+                type: "github",
+                org: $org,
+                repo: $repo,
+                ref: $ref
+              },
+              gitMetadata: {
+                remoteUrl: "https://github.com/nicci-afk/comminicationstation",
+                commitRef: $ref,
+                commitSha: $sha,
+                ci: true,
+                ciType: "github-actions",
+                rootDirectory: "apps/web"
+              }
+            }')"
+
+          code="$(curl --silent --show-error \
+            --output /tmp/vercel-deploy.json \
+            --write-out '%{http_code}' \
+            --request POST \
+            --url "https://api.vercel.com/v13/deployments?teamId=$VERCEL_ORG_ID" \
+            --header "Authorization: Bearer $VERCEL_TOKEN" \
+            --header "Content-Type: application/json" \
+            --data "$payload")"
+
+          if [ "$code" != "200" ] && [ "$code" != "201" ]; then
+            echo "Vercel deployment creation failed (HTTP $code)." >&2
+            cat /tmp/vercel-deploy.json >&2
+            exit 1
+          fi
+
+          deployment_id="$(jq -r '.id // empty' /tmp/vercel-deploy.json)"
+          deployment_url="$(jq -r '.url // empty' /tmp/vercel-deploy.json)"
+          if [ -z "$deployment_id" ] || [ -z "$deployment_url" ]; then
+            echo "Vercel deployment response did not contain id/url." >&2
+            cat /tmp/vercel-deploy.json >&2
+            exit 1
+          fi
+
+          echo "deployment_id=$deployment_id" >> "$GITHUB_OUTPUT"
+          echo "url=https://$deployment_url" >> "$GITHUB_OUTPUT"
+          echo "Created deployment $deployment_id"
+
+      - name: Wait for Vercel deployment readiness
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          DEPLOYMENT_ID: ${{ steps.deploy.outputs.deployment_id }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          for attempt in $(seq 1 60); do
+            curl --fail --silent --show-error \
+              --output /tmp/vercel-status.json \
+              --header "Authorization: Bearer $VERCEL_TOKEN" \
+              "https://api.vercel.com/v13/deployments/$DEPLOYMENT_ID?teamId=$VERCEL_ORG_ID"
+
+            state="$(jq -r '.readyState // .status // empty' /tmp/vercel-status.json)"
+            echo "Vercel state: $state"
+
+            if [ "$state" = "READY" ]; then
+              exit 0
+            fi
+            if [ "$state" = "ERROR" ] || [ "$state" = "CANCELED" ] || [ "$state" = "CANCELLED" ]; then
+              cat /tmp/vercel-status.json >&2
+              exit 1
+            fi
+            sleep 5
+          done
+
+          echo "Timed out waiting for Vercel deployment readiness." >&2
+          cat /tmp/vercel-status.json >&2
+          exit 1
 
       - name: Smoke-test Executive and Trust routes
         env:
