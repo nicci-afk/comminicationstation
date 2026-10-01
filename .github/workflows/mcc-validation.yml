@@ -63,3 +63,29 @@ jobs:
       - run: npm ci
       - run: npm ci --prefix apps/web
       - run: npm run test:phase3b
+
+  phase3b-browser:
+    name: Phase 3B isolated Supabase and browser
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24.14.1"
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            apps/web/package-lock.json
+      - uses: supabase/setup-cli@v1
+        with:
+          version: "2.75.0"
+      - run: npm ci
+      - run: npm ci --prefix apps/web
+      - run: npx playwright install --with-deps chromium
+      - run: bash scripts/validate_mcc_phase3b_browser.sh
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: phase3b-browser-evidence
+          path: test-results/phase3b-*.png

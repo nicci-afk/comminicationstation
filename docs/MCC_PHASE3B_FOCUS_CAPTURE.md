@@ -1,6 +1,6 @@
 # MCC Phase 3B — Focus, fast capture and daily workflow
 
-Status: IMPLEMENTED CANDIDATE — NOT DEPLOYED. Production approval pending.
+Status: IMPLEMENTED CANDIDATE — NOT DEPLOYED. Nicci approved the release in chat on 2026-10-01. Validation gates still apply.
 
 ## Verified continuation baseline
 
@@ -61,7 +61,7 @@ Only after explicit approval:
 3. Deploy frontend from the approved commit.
 4. Verify live authenticated behavior and audit counts on an explicitly approved test obligation/capture.
 
-No approval granted in this turn. No production schema/data/API/frontend changes, merges, workflow dispatches, sends, financial actions or booking changes were performed.
+Approval received on 2026-10-01 at 06:18 America/Chicago. No production schema/data/API/frontend changes, merges, workflow dispatches, sends, financial actions or booking changes were performed.
 
 ## Recovery
 
@@ -70,3 +70,7 @@ Revert frontend and API to the baseline release. If candidate SQL must be withdr
 ## Deferred scope
 
 Screenshot/document capture, server-side speech transcription, automatic classification/project routing, semantic merge suggestions, natural-language command execution, integrations and scheduled briefs are not implemented in this candidate. Typed capture with review is the conservative no-AI first increment.
+
+## Approval follow-through
+
+Initial candidate CI (run 36854241458) passed both the full legacy safety/database suite and the Phase 3B suite. An additional validation-only job now exercises an isolated local Supabase stack, real Edge runtime and authenticated desktop/mobile Chromium. It uses two synthetic accounts, never production credentials/data, and never provisions paid infrastructure. Approval remains recorded while this final gate runs.
