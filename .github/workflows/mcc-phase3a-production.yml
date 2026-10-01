@@ -19,6 +19,7 @@ env:
   SUPABASE_PROJECT_REF: "bgpjpomqrnwsdmrofudb"
   VERCEL_ORG_ID: "team_VyloIj0OJAb3IN63CmPGvqeG"
   VERCEL_PROJECT_ID: "prj_kypK3A8FOS9XdLadXmAr6pUHW7hA"
+  VERCEL_TEAM_SLUG: "agentedge"
   VERCEL_CLI_VERSION: "59.19.1"
 
 jobs:
@@ -107,15 +108,29 @@ jobs:
       - name: Install pinned Vercel CLI
         run: npm install --global "vercel@$VERCEL_CLI_VERSION"
 
+      - name: Verify Vercel token can access the target project
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          code="$(curl --silent --show-error --output /tmp/vercel-project.json --write-out '%{http_code}'             --header "Authorization: Bearer $VERCEL_TOKEN"             "https://api.vercel.com/v9/projects/$VERCEL_PROJECT_ID?teamId=$VERCEL_ORG_ID")"
+          if [ "$code" != "200" ]; then
+            echo "Vercel token cannot access the AgentEdge/message-command-center project (HTTP $code)." >&2
+            cat /tmp/vercel-project.json >&2
+            exit 1
+          fi
+          echo "PASS: Vercel token can access the target project."
+
       - name: Pull production project settings
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-        run: vercel pull --yes --environment=production --token="$VERCEL_TOKEN"
+        run: vercel pull --yes --environment=production --scope="$VERCEL_TEAM_SLUG" --project="$VERCEL_PROJECT_ID" --token="$VERCEL_TOKEN"
 
       - name: Build production artifact
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-        run: vercel build --prod --token="$VERCEL_TOKEN"
+        run: vercel build --prod --scope="$VERCEL_TEAM_SLUG" --project="$VERCEL_PROJECT_ID" --token="$VERCEL_TOKEN"
 
       - name: Deploy prebuilt production artifact
         id: deploy
@@ -124,7 +139,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          url="$(vercel deploy --prebuilt --prod --yes --token="$VERCEL_TOKEN")"
+          url="$(vercel deploy --prebuilt --prod --yes --scope="$VERCEL_TEAM_SLUG" --project="$VERCEL_PROJECT_ID" --token="$VERCEL_TOKEN")"
           echo "url=$url" >> "$GITHUB_OUTPUT"
           echo "Production URL: $url"
 
