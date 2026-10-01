@@ -306,3 +306,38 @@ export function useMccObligationAction() {
     },
   });
 }
+
+export function useMccCaptures() {
+  return useQuery({
+    queryKey: ["mcc-captures"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("obligations")
+        .select("id,title,description,created_at")
+        .eq("state", "BLOCKED").eq("blocked_reason", "CAPTURED — NEEDS CLARIFICATION")
+        .order("created_at", { ascending: true });
+      if (error) throw error;
+      return data ?? [];
+    },
+    refetchInterval: 60_000,
+  });
+}
+export function useMccProjects() {
+  return useQuery({
+    queryKey: ["mcc-projects"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("projects").select("id,title").eq("state", "ACTIVE").order("title");
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
+}
+export function useMccCapture() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: { operation: "CAPTURE"; request_id: string; note: string } | { operation: "REVIEW"; obligation_id: string; next_action: string; project_id: string | null }) =>
+      api<{ ok: boolean; obligation_id: string; idempotent?: boolean }>("mcc-fast-capture", body),
+    onSuccess: async () => {
+      await Promise.all(["mcc-captures", "mcc-today", "mcc-integrity-status", "obligation-events"].map(key => qc.invalidateQueries({ queryKey: [key] })));
+    },
+  });
+}
