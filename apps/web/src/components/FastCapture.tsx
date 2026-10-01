@@ -1,7 +1,7 @@
 import { useRef, useState } from "react";
 import { useMccCapture, useMccCaptures, useMccProjects } from "../lib/hooks";
 
-export default function FastCapture() {
+export default function FastCapture({ onReviewed }: { onReviewed: (item: { id: string; title: string }) => void }) {
   const [note, setNote] = useState("");
   const [message, setMessage] = useState("");
   const [reviewOpen, setReviewOpen] = useState(false);
@@ -35,12 +35,12 @@ export default function FastCapture() {
     </div>
     <p role="status" className="mt-2 text-sm">{message}</p>
     {error && <p role="alert" className="text-sm text-red-600">Capture inbox unavailable. Its count is unconfirmed.</p>}
-    {reviewOpen && !error && <div className="mt-3 space-y-3">{captures.map(item => <CaptureReview key={item.id} item={item} />)}
+    {reviewOpen && !error && <div className="mt-3 space-y-3">{captures.map(item => <CaptureReview key={item.id} item={item} onReviewed={onReviewed} />)}
       {!isLoading && captures.length === 0 && <p className="text-sm text-slate-500">No captures awaiting review.</p>}
     </div>}
   </section>;
 }
-function CaptureReview({ item }: { item: { id: string; title: string; description: string | null } }) {
+function CaptureReview({ item, onReviewed }: { item: { id: string; title: string; description: string | null }; onReviewed: (item: { id: string; title: string }) => void }) {
   const [nextAction, setNextAction] = useState("");
   const [project, setProject] = useState("");
   const [error, setError] = useState("");
@@ -48,7 +48,11 @@ function CaptureReview({ item }: { item: { id: string; title: string; descriptio
   const { data: projects = [], error: projectError } = useMccProjects();
   async function confirm() {
     setError("");
-    try { await review.mutateAsync({ operation: "REVIEW", obligation_id: item.id, next_action: nextAction, project_id: project || null }); }
+    try {
+      const result = await review.mutateAsync({ operation: "REVIEW", obligation_id: item.id, next_action: nextAction, project_id: project || null });
+      if (!result.ok || result.obligation_id !== item.id) throw new Error("Review was not confirmed. Keep the action and retry.");
+      onReviewed({ id: item.id, title: nextAction.trim() });
+    }
     catch (e) { setError(e instanceof Error ? e.message : "Review unconfirmed."); }
   }
   return <div className="rounded-xl bg-slate-50 dark:bg-slate-800 p-3">

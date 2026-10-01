@@ -43,16 +43,19 @@ export default function Executive() {
   const [focusMode, setFocusMode] = useState(false);
   const [expanded, setExpanded] = useState(false);
   const [receipt, setReceipt] = useState<{ id: string; title: string } | null>(null);
+  const [revealedId, setRevealedId] = useState<string | null>(null);
   const [undoMessage, setUndoMessage] = useState("");
   const undo = useMccObligationAction();
   async function undoRecent() {
     if (!receipt) return;
     try {
       await undo.mutateAsync({ obligation_id: receipt.id, action: "UNDO_LAST" });
-      setReceipt(null); setUndoMessage("Last change undone.");
+      setReceipt(null); setRevealedId(null); setUndoMessage("Last change undone.");
     } catch (e) { setUndoMessage(e instanceof Error ? e.message : "Undo unconfirmed."); }
   }
   function saved(item: MccTodayItem) { setReceipt({ id: item.obligation_id, title: item.title }); setUndoMessage(""); }
+  function reviewed(item: { id: string; title: string }) { setReceipt(item); setUndoMessage(""); }
+  const revealedItem = items.find(item => item.obligation_id === revealedId);
 
   const grouped = useMemo(() => {
     const result = new Map<string, MccTodayItem[]>();
@@ -92,10 +95,11 @@ export default function Executive() {
         </button>
       </div>
 
-      <FastCapture />
+      <FastCapture onReviewed={reviewed} />
       <p className="mt-4 text-sm text-slate-500">Start with urgent exceptions, focus on one action, then check waiting follow-ups before finishing your day.</p>
       {receipt && <div role="status" className="mt-3 rounded-lg bg-emerald-50 dark:bg-emerald-950 p-3 text-sm">
-        Saved: {receipt.title}. <button type="button" onClick={undoRecent} disabled={undo.isPending} className="underline">Undo last change</button>
+        Saved: {receipt.title}. {items.some(item => item.obligation_id === receipt.id) && <button type="button" onClick={() => { setFocusMode(false); setRevealedId(receipt.id); }} className="mr-3 underline">View action</button>}
+        <button type="button" onClick={undoRecent} disabled={undo.isPending} className="underline">Undo last change</button>
       </div>}
       {undoMessage && <p role="status" className="text-sm">{undoMessage}</p>}
       <div className="mt-4 flex flex-wrap gap-2 text-xs">
@@ -138,6 +142,13 @@ export default function Executive() {
         </div>
       ) : (
         <div className="mt-8 space-y-8">
+          {revealedItem && <section aria-label="Saved action" className="rounded-xl border border-indigo-200 dark:border-indigo-800 p-3">
+            <div className="mb-2 flex items-center justify-between gap-3">
+              <h2 className="font-semibold">Saved action</h2>
+              <button type="button" onClick={() => setRevealedId(null)} className="text-sm underline">Back to daily summary</button>
+            </div>
+            <ExecutiveCard key={revealedItem.obligation_id} item={revealedItem} onSaved={saved} />
+          </section>}
           <button type="button" onClick={() => setExpanded(v => !v)} className="text-sm underline">{expanded ? "Show daily summary" : "Show all active obligations"}</button>
           {Array.from(grouped.entries()).map(([section, sectionItems]) => (
             <section key={section}>
@@ -145,10 +156,11 @@ export default function Executive() {
                 <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
                   {SECTION_LABELS[section] ?? section.replaceAll("_", " ")}
                 </h2>
-                <span className="text-xs text-slate-400">{sectionItems.length}</span>
+                <span className="text-xs text-slate-400">{sectionItems.length < items.filter(item => item.section === section).length
+                  ? `${sectionItems.length} of ${items.filter(item => item.section === section).length}` : sectionItems.length}</span>
               </div>
               <div className="space-y-3">
-                {sectionItems.map((item) => (
+                {sectionItems.filter(item => item.obligation_id !== revealedItem?.obligation_id).map((item) => (
                   <ExecutiveCard key={item.obligation_id} item={item} onSaved={saved} />
                 ))}
               </div>
