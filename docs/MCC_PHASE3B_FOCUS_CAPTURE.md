@@ -54,7 +54,7 @@ Production backend verification after explicit approval:
 - New capture route rejects unauthenticated POST with HTTP 401.
 - No new MCC security-advisor findings. Pre-existing non-MCC advisor findings remain outside this release.
 
-Still not exercised: a signed-in production browser write with Nicci's real session. Authenticated full flow was validated on the isolated stack; no live client obligation was modified for testing.
+At release time, signed-in production writes had not been exercised. The production acceptance pass below closes that gap using a labeled test item; existing client obligations were preserved.
 
 ## Reproduce
 
@@ -104,3 +104,20 @@ Initial candidate CI (run 36854241458) passed both the full legacy safety/databa
 - Signed-in production writes were not exercised. Authenticated capture/review/action/undo and tenant isolation passed on the isolated real Supabase stack with desktop/mobile Chromium.
 
 Start daily use: open Executive, choose Focus mode, act on one item with Done/Blocked/Need help; use Fast capture for an unstructured note and review it into an explicit next action.
+
+## Signed-in production acceptance — 2026-10-01, America/Chicago
+
+Status: PASSED for live desktop capture/review/actions/undo/refresh and read-only Focus selection. No application/schema deployment in this pass.
+
+- User authorized the acceptance pass, completed secure magic-link sign-in, then said “ready.”
+- One labeled test obligation: `8c245fcb-6605-4865-be42-92ba419c2ca4`. Verbatim capture persisted after refresh; review produced an explicit TODAY action, PARTIALLY_VERIFIED, NICCI-owned.
+- Done removed the test from active work while a persistent receipt kept Undo available; Undo restored TODAY.
+- Inline Blocked saved its supplied reason; Undo restored TODAY.
+- Need help changed the owner to CHATGPT_PREP; ownership persisted after refresh; Undo restored NICCI.
+- Final test state DONE. Source and nine audit events retained (IDs 21–29); no canonical record deleted.
+- Focus displayed exactly one eligible NICCI item with Done/Blocked/Need help. Live Focus actions were not used on existing tasks. Focus auto-advance was exercised in prior isolated Chromium validation.
+- Original 14 obligation records are byte-equivalent in canonical JSON before/after: MD5 aggregate `1ead252c4018301ba856eed4ecb6f052`. All four automation switches remain false; emergency stop true.
+- Signed-in phone use was not exercised in this pass; isolated desktop/mobile Chromium had already passed before release.
+- Screenshot evidence retained privately as `mcc-production-acceptance-1790872413249.jpg`. Production receipt updated with acceptance result.
+
+Usability finding: after review, a lower-ranked capture can leave the review inbox and fall below the three-item NEEDS_YOU_NOW daily cap. Expand “Show all active obligations” to find it. Suggested next small improvement: a persistent review-success receipt with a way to reveal the reviewed action, while preserving ranking and the bounded daily summary. Prepare and validate separately before any further production code release.
