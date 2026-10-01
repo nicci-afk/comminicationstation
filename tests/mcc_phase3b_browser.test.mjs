@@ -48,7 +48,7 @@ await page.getByRole('button',{name:'Need help',exact:true}).click();await page.
 assert.equal((await admin.from('obligations').select('execution_owner').eq('id',b).single()).data.execution_owner,'CHATGPT_PREP');
 // Reviewed capture must remain reachable even below the summary cap and Focus ranking.
 const higherIds=[4,5,6].map(n=>'30000000-0000-4000-8000-'+String(n).padStart(12,'0'));
-res=await admin.from('obligations').insert(higherIds.map((id,i)=>({id,user_id:own,type:'ACTION',title:'Higher ranked daily action '+i,state:'TODAY',next_action:'Confirmed higher-ranked next action '+i,verification_state:'VERIFIED',priority:200-i})));
+res=await admin.from('obligations').insert(higherIds.map((id,i)=>({id,user_id:own,type:'ACTION',title:'Higher ranked daily action '+i,state:'TODAY',next_action:'Confirmed higher-ranked next action '+i,verification_state:'VERIFIED',priority:90-i})));
 assert.equal(res.error,null);
 await page.getByLabel("What's on your mind?").fill('Lois tomorrow — keep this raw note');await page.getByRole('button',{name:'Capture',exact:true}).click();await page.getByText('Captured. Review when ready.',{exact:true}).waitFor();
 await page.getByRole('button',{name:'Review captures (1)',exact:true}).click();await page.getByText('Lois tomorrow — keep this raw note',{exact:true}).waitFor();
