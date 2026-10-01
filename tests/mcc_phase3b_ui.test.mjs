@@ -83,6 +83,17 @@ assert.equal(screen.getAllByRole('heading',{name:'Reviewed lower-ranked action'}
 assert.ok(screen.getByRole('button',{name:'Show all active obligations'}));
 fireEvent.click(screen.getByRole('button',{name:'Back to daily summary'}));
 assert.equal(screen.queryByRole('heading',{name:'Reviewed lower-ranked action'}),null);
+// A later ranking change must not double-count the revealed card inside its section.
+await React.act(async()=>{
+ const reviewed=items.find(item=>item.title==='Reviewed lower-ranked action');
+ items=[...items.filter(item=>item.section==='NEXT'),{...reviewed,section_rank:1},...items.filter(item=>item.section==='NEEDS_YOU_NOW' && item!==reviewed)];
+ await client.invalidateQueries({queryKey:['mcc-today']});
+});
+fireEvent.click(screen.getByRole('button',{name:'View action'}));
+assert.equal(screen.getAllByRole('heading',{name:'Reviewed lower-ranked action'}).length,1);
+assert.ok(screen.getByText('2 of 6'));
+fireEvent.click(screen.getByRole('button',{name:'Back to daily summary'}));
+assert.equal(screen.getAllByRole('heading',{name:'Reviewed lower-ranked action'}).length,1);
 fireEvent.click(screen.getByRole('button',{name:'Focus mode'}));
 assert.equal(screen.getAllByRole('article').length,1);
 assert.ok(screen.getByRole('heading',{name:'Second action'}));

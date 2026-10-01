@@ -150,22 +150,25 @@ export default function Executive() {
             <ExecutiveCard key={revealedItem.obligation_id} item={revealedItem} onSaved={saved} />
           </section>}
           <button type="button" onClick={() => setExpanded(v => !v)} className="text-sm underline">{expanded ? "Show daily summary" : "Show all active obligations"}</button>
-          {Array.from(grouped.entries()).map(([section, sectionItems]) => (
+          {Array.from(grouped.entries()).map(([section, sectionItems]) => {
+            const visibleItems = sectionItems.filter(item => item.obligation_id !== revealedItem?.obligation_id);
+            const total = items.filter(item => item.section === section).length;
+            if (visibleItems.length === 0) return null;
+            return (
             <section key={section}>
               <div className="flex items-center justify-between mb-2">
                 <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
                   {SECTION_LABELS[section] ?? section.replaceAll("_", " ")}
                 </h2>
-                <span className="text-xs text-slate-400">{sectionItems.length < items.filter(item => item.section === section).length
-                  ? `${sectionItems.length} of ${items.filter(item => item.section === section).length}` : sectionItems.length}</span>
+                <span className="text-xs text-slate-400">{visibleItems.length < total ? `${visibleItems.length} of ${total}` : total}</span>
               </div>
               <div className="space-y-3">
-                {sectionItems.filter(item => item.obligation_id !== revealedItem?.obligation_id).map((item) => (
+                {visibleItems.map((item) => (
                   <ExecutiveCard key={item.obligation_id} item={item} onSaved={saved} />
                 ))}
               </div>
             </section>
-          ))}
+          ); })}
         </div>
       )}
     </div>
