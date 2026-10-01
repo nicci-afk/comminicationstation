@@ -6,7 +6,7 @@ Production baseline remains release `37754b86f6ce910fe06903624d55cea03745ed1c`, 
 
 ## Problem and final behavior
 
-A confirmed capture could leave the review inbox but rank below the daily summary limit. Review now leaves a saved receipt outside the disappearing review form, with View action and Undo. View action exits Focus and shows the specific saved item above the bounded summary, without changing priority, expanding the backlog or duplicating its card. Back to daily summary dismisses that view. Done retains its existing Undo receipt. Failed or unconfirmed review retains the typed action and reports the error.
+A confirmed capture could leave the review inbox but rank below the daily summary limit. Review now leaves a saved receipt outside the disappearing review form, with View action and Undo. View action exits Focus and shows the specific saved item above the bounded summary, without changing priority, expanding the backlog or duplicating its card. Back to daily summary dismisses that view. Done retains its existing Undo receipt. Failed or unconfirmed review retains the typed action and reports the error. Manual actions invalidate the capture inbox immediately, so Undo review returns its original note for clarification without waiting for the periodic refresh.
 
 Each section shows its displayed count and total when items are hidden, such as 3 of 6. The existing Show all active obligations control exposes the full list. Focus continues to choose the database-ranked eligible NICCI action.
 

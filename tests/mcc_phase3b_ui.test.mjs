@@ -7,7 +7,7 @@ Object.defineProperty(globalThis,'navigator',{value:dom.window.navigator,configu
 globalThis.IS_REACT_ACT_ENVIRONMENT=true;
 const base={user_id:'fixture',section:'NEXT',section_order:2,section_rank:1,effective_priority:100,priority_reasons:['Manually marked TODAY'],critical_attention:false,type:'ACTION',state:'TODAY',risk_level:'GREEN',execution_owner:'NICCI',due_at:null,due_kind:null,waiting_on:null,waiting_since:null,follow_up_at:null,next_action:'Call supplier',verification_state:'VERIFIED',freshness_expires_at:null,project_id:null,project_title:null,has_open_dependency:false,is_stale:false};
 let items=[{...base,obligation_id:'00000000-0000-4000-8000-000000000001',title:'First action'}, {...base,obligation_id:'00000000-0000-4000-8000-000000000002',title:'Second action',section_rank:2}];
-let captures=[], calls=[], failCapture=true, failReview=true;
+let captures=[], calls=[], failCapture=true, failReview=true, capturedNote='';
 globalThis.fetch=async(input,init)=>{
  const url=new URL(String(input));
  if(url.hostname!=='bgpjpomqrnwsdmrofudb.supabase.co')throw new Error('Unexpected network blocked: '+url);
@@ -16,7 +16,11 @@ globalThis.fetch=async(input,init)=>{
  else if(url.pathname.endsWith('/obligations'))data=captures;
  else if(url.pathname.endsWith('/mcc-obligation-action')) {
    const body=JSON.parse(init.body); calls.push(body);
-   if(body.action==='UNDO_LAST')items=[{...base,obligation_id:body.obligation_id,title:'First action'},...items];
+   if(body.action==='UNDO_LAST' && body.obligation_id==='00000000-0000-4000-8000-000000000003') {
+     captures=[{id:body.obligation_id,title:capturedNote,description:capturedNote}];
+     items=items.filter(i=>i.obligation_id!==body.obligation_id);
+   }
+   else if(body.action==='UNDO_LAST')items=[{...base,obligation_id:body.obligation_id,title:'First action'},...items];
    else items=items.filter(i=>i.obligation_id!==body.obligation_id);
    data={ok:true,obligation_id:body.obligation_id};
  } else if(url.pathname.endsWith('/mcc-fast-capture')) {
@@ -27,7 +31,7 @@ globalThis.fetch=async(input,init)=>{
     captures=[];
     items=[...items,...Array.from({length:5},(_,i)=>({...base,section:'NEEDS_YOU_NOW',section_rank:i+1,obligation_id:'fixture-'+i,title:'Higher ranked '+i})),{...base,section:'NEEDS_YOU_NOW',section_rank:6,obligation_id:body.obligation_id,title:body.next_action,next_action:body.next_action}];
     data={ok:true,obligation_id:body.obligation_id};
-   } else {captures=[{id:'00000000-0000-4000-8000-000000000003',title:body.note,description:body.note}];data={ok:true,obligation_id:captures[0].id};}
+   } else {capturedNote=body.note;captures=[{id:'00000000-0000-4000-8000-000000000003',title:body.note,description:body.note}];data={ok:true,obligation_id:captures[0].id};}
  }
  return new Response(JSON.stringify(data),{status,headers:{'content-type':'application/json'}});
 };
@@ -97,6 +101,10 @@ assert.equal(screen.getAllByRole('heading',{name:'Reviewed lower-ranked action'}
 fireEvent.click(screen.getByRole('button',{name:'Focus mode'}));
 assert.equal(screen.getAllByRole('article').length,1);
 assert.ok(screen.getByRole('heading',{name:'Second action'}));
+fireEvent.click(screen.getByRole('button',{name:'Undo last change'}));
+await screen.findByRole('button',{name:'Review captures (1)'});
+assert.ok(screen.getByText('Lois tomorrow — raw note'));
+assert.equal(screen.queryByRole('button',{name:'View action'}),null);
 cleanup(); client.clear(); supabase.auth.stopAutoRefresh(); await supabase.removeAllChannels(); dom.window.close();
 console.log('PASS: actual React interactions — one Focus card, Done/next, persistent undo, inline Blocked, failed capture retains text, retry ID, review inbox, hidden action receipt/reveal and preserved Focus ranking');
 // Supabase's browser session maintenance timers outlive the synthetic DOM.

@@ -300,6 +300,7 @@ export function useMccObligationAction() {
     onSuccess: async (_data, variables) => {
       await Promise.all([
         qc.invalidateQueries({ queryKey: ["mcc-today"] }),
+        qc.invalidateQueries({ queryKey: ["mcc-captures"] }),
         qc.invalidateQueries({ queryKey: ["mcc-integrity-status"] }),
         qc.invalidateQueries({ queryKey: ["obligation-events", variables.obligation_id] }),
       ]);

@@ -66,7 +66,7 @@ assert.equal((await admin.from('obligation_events').select('id',{count:'exact'})
 await page.getByText('Saved: Confirm Moorea transfer details.',{exact:false}).getByRole('button',{name:'Undo last change',exact:true}).click();
 await page.getByRole('button',{name:'Review captures (1)',exact:true}).waitFor();
 assert.equal((await admin.from('obligations').select('state').eq('id',captured.id).single()).data.state,'BLOCKED');
-assert.equal(await page.getByRole('region',{name:'Saved action',exact:true}).count(),0);
+await page.getByRole('region',{name:'Saved action',exact:true}).waitFor({state:'detached'});
 await page.getByLabel('Confirm one next action').fill('Confirm Moorea transfer details');
 await page.getByRole('button',{name:"Add to today's actions",exact:true}).click();
 await page.getByRole('button',{name:'View action',exact:true}).waitFor();
