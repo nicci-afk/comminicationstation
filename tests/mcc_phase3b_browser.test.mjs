@@ -1,7 +1,8 @@
 import fs from 'node:fs';
 import assert from 'node:assert/strict';
 import { chromium } from 'playwright';
-import { createClient } from '../apps/web/node_modules/@supabase/supabase-js/dist/main/index.js';
+import { createRequire } from 'node:module';
+const { createClient } = createRequire(new URL('../apps/web/package.json', import.meta.url))('@supabase/supabase-js');
 const cfg=JSON.parse(fs.readFileSync(process.env.MCC_LOCAL_STATUS,'utf8'));
 if (!/^http:\/\/(127\.0\.0\.1|localhost):/.test(cfg.API_URL)) throw new Error('Refusing nonlocal database');
 const admin=createClient(cfg.API_URL,cfg.SERVICE_ROLE_KEY,{auth:{persistSession:false,autoRefreshToken:false}});
