@@ -96,7 +96,10 @@ await React.act(async()=>{
 fireEvent.click(screen.getByRole('button',{name:'View action'}));
 assert.equal(screen.getAllByRole('heading',{name:'Reviewed lower-ranked action'}).length,1);
 assert.ok(screen.getByText('2 of 6'));
+fireEvent.click(screen.getByRole('button',{name:'Show all active obligations'}));
+assert.ok(screen.getByRole('button',{name:'Show daily summary'}));
 fireEvent.click(screen.getByRole('button',{name:'Back to daily summary'}));
+assert.ok(screen.getByRole('button',{name:'Show all active obligations'}));
 assert.equal(screen.getAllByRole('heading',{name:'Reviewed lower-ranked action'}).length,1);
 fireEvent.click(screen.getByRole('button',{name:'Focus mode'}));
 assert.equal(screen.getAllByRole('article').length,1);

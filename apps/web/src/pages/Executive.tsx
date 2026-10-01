@@ -145,7 +145,7 @@ export default function Executive() {
           {revealedItem && <section aria-label="Saved action" className="rounded-xl border border-indigo-200 dark:border-indigo-800 p-3">
             <div className="mb-2 flex items-center justify-between gap-3">
               <h2 className="font-semibold">Saved action</h2>
-              <button type="button" onClick={() => setRevealedId(null)} className="text-sm underline">Back to daily summary</button>
+              <button type="button" onClick={() => { setRevealedId(null); setExpanded(false); }} className="text-sm underline">Back to daily summary</button>
             </div>
             <ExecutiveCard key={revealedItem.obligation_id} item={revealedItem} onSaved={saved} />
           </section>}
