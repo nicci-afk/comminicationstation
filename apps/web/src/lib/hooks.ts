@@ -59,6 +59,41 @@ export function useQueue(states: string[], businessId?: string | null) {
   });
 }
 
+export const TODAY_PAGE_SIZE = 200;
+export function useTodayQueue(page: number) {
+  const qc = useQueryClient();
+  return useQuery({
+    queryKey: ["queue-page", "today", page],
+    queryFn: async ({ signal }): Promise<{ items: QueueItem[]; total: number; page: number }> => {
+      async function readPage(index: number) {
+        const response = await supabase.from("queue_items")
+          .select("*", { count: "exact" }).eq("state", "needs_attention")
+          .order("priority", { ascending: false }).order("created_at", { ascending: false })
+          .order("id", { ascending: true })
+          .range(index * TODAY_PAGE_SIZE, (index + 1) * TODAY_PAGE_SIZE - 1).abortSignal(signal);
+        const { data, error, count } = response;
+        if (error) throw error;
+        if (!Array.isArray(data) || count === null || count < 0 || data.length !== Math.max(0, Math.min(TODAY_PAGE_SIZE, count - index * TODAY_PAGE_SIZE))) {
+          throw new Error("Queue response was incomplete. Refresh to verify it.");
+        }
+        return { items: data as QueueItem[], total: count, page: index };
+      }
+      try { return await readPage(page); }
+      catch (error) {
+        // PostgREST reports an offset beyond the remaining rows as PGRST103
+        // (HTTP 416), not a successful empty page. Only a fresh first-page
+        // response may supply the new count or prove the queue is empty.
+        if (page === 0 || (error as { code?: string }).code !== "PGRST103") throw error;
+        const first = await readPage(0);
+        qc.setQueryData(["queue-page", "today", 0], first);
+        return first;
+      }
+    },
+    // A recovered first page is not a reusable snapshot of the old page key.
+    staleTime: query => query.state.data?.page === page ? 60_000 : 0,
+  });
+}
+
 // Realtime as cache invalidation: any change to my queue rows refetches the
 // visible page through RLS. Falls back gracefully — a 60s poll keeps things
 // fresh if the socket drops.
@@ -69,9 +104,13 @@ export function useQueueRealtime() {
       .channel("queue-changes")
       .on("postgres_changes", { event: "*", schema: "public", table: "queue_items" }, () => {
         qc.invalidateQueries({ queryKey: ["queue"] });
+        qc.invalidateQueries({ queryKey: ["queue-page"] });
       })
       .subscribe();
-    const interval = setInterval(() => qc.invalidateQueries({ queryKey: ["queue"] }), 60_000);
+    const interval = setInterval(() => {
+      qc.invalidateQueries({ queryKey: ["queue"] });
+      qc.invalidateQueries({ queryKey: ["queue-page"] });
+    }, 60_000);
     return () => {
       supabase.removeChannel(channel);
       clearInterval(interval);
@@ -145,22 +184,33 @@ export function useItemEvents(itemId: string | null) {
   });
 }
 
-// User actions are direct RLS-guarded updates — ~0 perceived latency, and the
-// DB trigger records the audit event with actor='user'.
+// Return a confirmed row: a successful HTTP response with no affected row is
+// not a saved action. The DB trigger records state transitions as user actions.
 export function useItemAction() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (args: { id: string; patch: Partial<QueueItem> }) => {
-      const { error } = await supabase.from("queue_items").update(args.patch).eq("id", args.id);
+    mutationFn: async (args: { id: string; patch: Partial<QueueItem>; expected?: Pick<QueueItem, "state" | "updated_at" | "snoozed_until" | "follow_up_at" | "last_inbound_message_id" | "message_count"> }) => {
+      let query = supabase.from("queue_items").update(args.patch).eq("id", args.id);
+      if (args.expected) {
+        for (const [key, value] of Object.entries(args.expected)) {
+          query = value === null ? query.is(key, null) : query.eq(key, value);
+        }
+      }
+      const { data, error } = await query.select("*").single();
       if (error) throw error;
+      if (!data || data.id !== args.id || Object.entries(args.patch).some(([key, value]) =>
+        // Timestamp strings can have equivalent timezone representations.
+        key.endsWith("_at") || key === "snoozed_until"
+          ? value === null ? data[key] !== null : Date.parse(String(data[key])) !== Date.parse(String(value))
+          : data[key] !== value)) throw new Error("Save was not confirmed. Refresh before retrying.");
+      return data as QueueItem;
     },
-    onMutate: async ({ id, patch }) => {
-      await qc.cancelQueries({ queryKey: ["queue"] });
-      qc.setQueriesData({ queryKey: ["queue"] }, (old: QueueItem[] | undefined) =>
-        old?.map((i) => (i.id === id ? { ...i, ...patch } : i)),
-      );
-    },
-    onSettled: () => qc.invalidateQueries({ queryKey: ["queue"] }),
+    onSettled: (_data, _error, { id }) => Promise.all([
+      qc.invalidateQueries({ queryKey: ["queue"] }),
+      qc.invalidateQueries({ queryKey: ["queue-page"] }),
+      qc.invalidateQueries({ queryKey: ["item", id] }),
+      qc.invalidateQueries({ queryKey: ["item-events", id] }),
+    ]),
   });
 }
 
