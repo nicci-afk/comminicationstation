@@ -26,6 +26,7 @@ export interface QueueItem {
   sender_identifier: string;
   is_vip: boolean;
   message_count: number;
+  last_inbound_message_id: string | null;
   resolved_at: string | null;
   snoozed_until: string | null;
   sla_due_at: string | null;

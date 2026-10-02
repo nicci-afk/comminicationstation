@@ -59,3 +59,8 @@ export AGENT_BROWSER_EXECUTABLE_PATH="$(cd "$ROOT" && node --input-type=module -
 "$ROOT/node_modules/.bin/agent-browser" close
 cd "$ROOT"
 MCC_LOCAL_STATUS="$MCC_TEST_DIR/local-status.json" node tests/mcc_phase3b_browser.test.mjs
+
+# Today reliability uses intercepted queue fixtures after the authenticated flow.
+# Jobs do not share dist: produce CSS from this exact checkout for the fixture.
+npm run build --prefix apps/web
+node tests/mcc_today_queue_browser.test.mjs

@@ -32,7 +32,7 @@ export function BusinessChip({ businesses, id }: { businesses: Business[]; id: s
   if (!b) return null;
   return (
     <span
-      className="px-2 py-0.5 rounded-full text-xs font-medium text-white"
+      className="max-w-full break-words px-2 py-0.5 rounded-full text-xs font-medium text-white"
       style={{ backgroundColor: b.color }}
     >
       {b.name}
@@ -59,12 +59,12 @@ export default function ItemCard({
           : "border-slate-200 dark:border-slate-700"
       }`}
     >
-      <div className="flex items-center gap-2 text-sm">
+      <div className="flex flex-wrap items-center gap-2 text-sm">
         <Icon className="w-4 h-4 text-slate-400 dark:text-slate-500 shrink-0" />
         {item.is_vip && <Star className="w-4 h-4 text-amber-500 shrink-0" fill="currentColor" />}
         {item.escalated && <AlertTriangle className="w-4 h-4 text-red-500 shrink-0" />}
-        <span className="font-semibold truncate">{item.sender_name || item.sender_identifier}</span>
-        <span className={`px-2 py-0.5 rounded-full text-xs ${CATEGORY_STYLE[item.category] ?? CATEGORY_STYLE.other}`}>
+        <span className="min-w-0 max-w-full font-semibold truncate">{item.sender_name || item.sender_identifier}</span>
+        <span className={`max-w-full break-words px-2 py-0.5 rounded-full text-xs ${CATEGORY_STYLE[item.category] ?? CATEGORY_STYLE.other}`}>
           {item.category.replace("_", " ")}
         </span>
         <BusinessChip businesses={businesses} id={item.business_id} />
