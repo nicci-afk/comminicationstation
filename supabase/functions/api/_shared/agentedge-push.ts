@@ -6,6 +6,7 @@
 import { SupabaseClient } from "@supabase/supabase-js";
 import { getUserSecret } from "./util.ts";
 import { callAnthropic } from "./llm.ts";
+import { agentedgeWritePolicy } from "./agentedge-safety.ts";
 
 const AGENTEDGE_URL = "https://iitrvppynxisvhztbybw.supabase.co";
 const AE_USER_ID = "367a5e0f-4438-44f6-b29d-88bfb134826c";
@@ -22,6 +23,12 @@ export async function maybePushToAgentedge(
   category: string,
 ): Promise<void> {
   if (!PUSH_CATEGORIES.has(category)) return;
+
+  const policy = await agentedgeWritePolicy(db, userId);
+  if (!policy.allowed) {
+    console.info(JSON.stringify({ event: "agentedge_write_paused", writer: "maybePushToAgentedge", ...policy }));
+    return;
+  }
 
   const [aeKey, anthropicKey] = await Promise.all([
     getUserSecret(db, userId, "agentedge_service_key"),

@@ -89,3 +89,36 @@ jobs:
         with:
           name: phase3b-browser-evidence
           path: test-results/phase3b-*.png
+
+  agentedge-safety:
+    name: AgentEdge containment runtime preflight
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24.14.1"
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: "v2.9.0"
+      - uses: supabase/setup-cli@v1
+        with:
+          version: "2.75.0"
+      - name: Verify local runtime tools
+        run: |
+          docker info
+          deno --version
+          supabase --version
+      - name: Exact-source and mocked regression tests
+        run: node --experimental-vm-modules --test tests/agentedge-safety.test.mjs tests/mcc_agentedge_materializer.test.mjs
+      - name: Isolated Edge runtime and PostgREST preflight
+        run: bash scripts/validate_mcc_agentedge_runtime.sh
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: mcc-agentedge-runtime-evidence
+          path: test-results/mcc-agentedge-runtime/
+
