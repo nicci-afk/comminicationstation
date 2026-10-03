@@ -73,6 +73,12 @@ node "$ROOT/tests/mcc_sync_runtime.test.mjs" --prepare "$BUNDLES" "$LOCAL" "$EVI
 STARTED=1
 (cd "$LOCAL" && supabase start -x realtime,storage-api,imgproxy,postgres-meta,studio,logflare,vector,supavisor) >"$EVIDENCE/start.log" 2>&1
 (cd "$LOCAL" && supabase status -o json) >"$WORK/status.json" 2>"$EVIDENCE/status.log"
+# Non-sensitive observed image/version evidence; never inspect container env.
+docker ps --format '{{.Names}} {{.Image}}' | grep -F -- "$PROJECT" >"$EVIDENCE/runtime-containers.log"
+REST_CONTAINER="$(awk '$2 ~ /postgrest/ {print $1}' "$EVIDENCE/runtime-containers.log")"
+[[ -n "$REST_CONTAINER" && "$REST_CONTAINER" != *$'\n'* ]] || { echo 'Expected one disposable PostgREST container' >&2; exit 2; }
+docker inspect --format '{{.Name}} {{.Config.Image}} {{.Image}}' "$REST_CONTAINER" >"$EVIDENCE/postgrest-image.log"
+docker exec "$REST_CONTAINER" postgrest --version >"$EVIDENCE/postgrest-version.log" 2>&1
 export MCC_SYNC_RUNTIME_DB_CONTAINER="supabase_db_$PROJECT"
 docker exec -i "$MCC_SYNC_RUNTIME_DB_CONTAINER" psql -U postgres -d postgres -v ON_ERROR_STOP=1 <"$ROOT/tests/fixtures/mcc_sync_runtime.sql" >"$EVIDENCE/schema.log" 2>&1
 export MCC_SYNC_RUNTIME_WORKER_SECRET="mcc-local-fixture-$PROJECT"

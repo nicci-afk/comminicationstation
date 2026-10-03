@@ -178,6 +178,78 @@ if (process.argv[2] === '--prepare') {
       const denied = await localFetch('/rest/v1/rpc/claim_jobs', { method: 'POST', headers: { apikey: anon, authorization: `Bearer ${anon}`, 'content-type': 'application/json' }, body: JSON.stringify({ p_queue: 'sync_jobs', p_n: 3, p_vt: 150 }) });
       assert([401, 403].includes(denied.status), `Anonymous RPC unexpectedly available: ${denied.status}`);
     });
+    await t.test('native REST lock representation agrees with persisted SQL and simple-filter controls', async () => {
+      // Diagnostics only: execute the same synthetic CAS through native REST
+      // and direct local SQL. Never alter or emulate a candidate response.
+      const targetLock = BASE_TIME;
+      const expiry = '2026-10-02T18:57:00.123Z';
+      const expiredLock = '2026-10-02T18:56:59.123Z';
+      const unexpiredLock = '2026-10-02T18:59:00.456Z';
+      const diagnostics = { postgresVersion: sql('show server_version;'), postgrestVersion: null, serverHeader: null, cases: [] };
+      const destination = path.join(evidence, 'lock-representation-diagnostics.json');
+      const persist = () => fs.writeFileSync(destination, JSON.stringify(diagnostics, null, 2));
+      const discovery = await localFetch('/rest/v1/', { headers: { ...authHeaders, accept: 'application/openapi+json' } });
+      diagnostics.serverHeader = discovery.headers.get('server');
+      diagnostics.versionDiscoveryStatus = discovery.status;
+      if (discovery.ok) {
+        const document = await discovery.json();
+        // Keep only the server version; the OpenAPI schema is not evidence data.
+        diagnostics.postgrestVersion = typeof document.info?.version === 'string' ? document.info.version : null;
+      }
+      persist();
+      for (const [name, prior, filterKey, filterValue, expectedRows] of [
+        ['or-null', null, 'or', `(sync_locked_at.is.null,sync_locked_at.lt.${expiry})`, 1],
+        ['or-expired', expiredLock, 'or', `(sync_locked_at.is.null,sync_locked_at.lt.${expiry})`, 1],
+        ['simple-is-null', null, 'sync_locked_at', 'is.null', 1],
+        ['simple-lt-expiry', expiredLock, 'sync_locked_at', `lt.${expiry}`, 1],
+        ['or-unexpired', unexpiredLock, 'or', `(sync_locked_at.is.null,sync_locked_at.lt.${expiry})`, 0],
+        ['simple-is-null-unexpired', unexpiredLock, 'sync_locked_at', 'is.null', 0],
+        ['simple-lt-unexpired', unexpiredLock, 'sync_locked_at', `lt.${expiry}`, 0],
+      ]) {
+        await reset(`native CAS diagnostic ${name}`, { sync_locked_at: prior });
+        const query = new URLSearchParams({ id: `eq.${ACCOUNT}`, [filterKey]: filterValue, select: 'id,sync_locked_at' });
+        const response = await localFetch(`/rest/v1/gmail_accounts?${query}`, {
+          method: 'PATCH', headers: { ...authHeaders, accept: 'application/json', Prefer: 'return=representation' },
+          body: JSON.stringify({ sync_locked_at: targetLock }),
+        });
+        const raw = await response.text();
+        let value;
+        try { value = raw ? JSON.parse(raw) : null; } catch { value = null; }
+        const returned = Array.isArray(value) ? value.map(row => ({ id: row.id, sync_locked_at: row.sync_locked_at })) : null;
+        const snapshot = () => JSON.parse(sql(`select jsonb_build_object('id',id,'sync_locked_at',sync_locked_at) from public.gmail_accounts where id='${ACCOUNT}';`));
+        const row = {
+          name, prior, expectedRows, expectedPersistedLock: expectedRows ? targetLock : prior, requestedLock: targetLock, query: query.toString(), status: response.status,
+          serverHeader: response.headers.get('server'), preferenceApplied: response.headers.get('preference-applied'),
+          contentRange: response.headers.get('content-range'), returnedRowCount: returned?.length ?? null,
+          returned, persistedAfterRest: snapshot(), errorCode: !response.ok && typeof value?.code === 'string' ? value.code : null,
+        };
+        diagnostics.cases.push(row);
+        persist();
+        // Direct SQL control uses the same local service role and trigger, but
+        // does not pass through PostgREST's RETURNING projection planner.
+        sql(`update public.gmail_accounts set sync_locked_at=${prior === null ? 'null' : `'${prior}'::timestamptz`} where id='${ACCOUNT}';`);
+        const predicate = filterKey === 'or' ? `(sync_locked_at is null or sync_locked_at < '${expiry}'::timestamptz)` : filterValue === 'is.null' ? 'sync_locked_at is null' : `sync_locked_at < '${expiry}'::timestamptz`;
+        const control = sql(`begin; set local role service_role; with changed as (update public.gmail_accounts set sync_locked_at='${targetLock}'::timestamptz where id='${ACCOUNT}' and ${predicate} returning id,sync_locked_at) select coalesce(jsonb_agg(to_jsonb(changed)),'[]'::jsonb) from changed; commit;`);
+        row.sqlReturned = JSON.parse(control.split('\n').find(line => line.startsWith('[')));
+        row.persistedAfterSql = snapshot();
+        persist();
+      }
+      // Write every case before asserting, so a broken runtime leaves evidence
+      // for both OR forms, simple controls and contention. Nothing is skipped.
+      for (const row of diagnostics.cases) {
+        assert.equal(row.sqlReturned.length, row.expectedRows, `${row.name}: SQL fixture CAS row count disagrees`);
+        assert.equal(Date.parse(row.persistedAfterSql.sync_locked_at), Date.parse(row.expectedPersistedLock));
+        assert.equal(row.status, 200, `${row.name}: native REST failed`);
+        assert.equal(Date.parse(row.persistedAfterRest.sync_locked_at), Date.parse(row.expectedPersistedLock), `${row.name}: REST persisted incorrect lock`);
+      }
+      for (const row of diagnostics.cases.filter(row => row.name.startsWith('simple-'))) {
+        assert.equal(row.returnedRowCount, row.expectedRows, `${row.name}: simple filter returned incorrect CAS row count`);
+      }
+      for (const row of diagnostics.cases) {
+        assert.equal(row.returnedRowCount, row.expectedRows, `${row.name}: returned CAS representation disagrees; inspect lock-representation-diagnostics.json and PostgREST version`);
+        if (row.expectedRows) assert.equal(Date.parse(row.returned[0].sync_locked_at), Date.parse(targetLock));
+      }
+    });
     await t.test('multipage sync ingests all pages before the single fenced checkpoint', async () => {
       await reset('multipage');
       const result = await run(multi());
