@@ -1,13 +1,24 @@
-# Approval: Nicci's explicit release approval, chat 2026-10-01 06:18 America/Chicago.
-# One-shot frontend release. Schema and API must be verified before merging this PR.
+# LOCAL PREPARATION ONLY. Publishing/merging does not authorize a release.
+# Deploy and rollback are separately fail-closed in the reviewed controller.
 name: MCC Phase 3B approved production release
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - ".github/workflows/mcc-phase3b-production.yml"
   workflow_dispatch:
+    inputs:
+      operation:
+        description: Read-only inspection, or the separately authorized frontend operation
+        type: choice
+        options: [inspect, deploy, rollback]
+        default: inspect
+        required: true
+      release_deployment_id:
+        description: Rollback only; exact deployment ID created by this approved release
+        type: string
+        required: false
+      confirmation:
+        description: 'deploy: c3e6f4ea4cc39e15e6c3cc9bca6422d1b81f2217; rollback: dpl_G4Ju1NMyeA6VMyGWkEmmusxNpjb2'
+        type: string
+        required: false
 
 permissions:
   contents: read
@@ -17,183 +28,25 @@ concurrency:
   group: mcc-phase3b-production
   cancel-in-progress: false
 
-env:
-  APPROVED_PHASE3B_COMMIT: "409c878a46282c991fa73a55e7cb86bfa4db4e15"
-  SUPABASE_PROJECT_REF: "bgpjpomqrnwsdmrofudb"
-  VERCEL_ORG_ID: "team_VyloIj0OJAb3IN63CmPGvqeG"
-  VERCEL_PROJECT_ID: "prj_kypK3A8FOS9XdLadXmAr6pUHW7hA"
-  VERCEL_TEAM_SLUG: "agentedge"
-  VERCEL_CLI_VERSION: "59.19.1"
-
 jobs:
-  preflight:
-    name: Verify approved release lineage
+  frontend:
+    name: Inspect or execute the explicitly approved frontend operation
     runs-on: ubuntu-latest
-    outputs:
-      approved: ${{ steps.lineage.outputs.approved }}
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-
-      - id: lineage
-        name: Verify Phase 3B merge is an ancestor
-        shell: bash
-        run: |
-          set -euo pipefail
-          if git merge-base --is-ancestor "$APPROVED_PHASE3B_COMMIT" HEAD; then
-            git diff --exit-code "$APPROVED_PHASE3B_COMMIT" HEAD -- apps/web/src supabase/functions/api scripts/mcc_phase3b_fast_capture.sql
-            echo "approved=true" >> "$GITHUB_OUTPUT"
-            echo "PASS: approved Phase 3B merge is in this production runner lineage."
-          else
-            echo "approved=false" >> "$GITHUB_OUTPUT"
-            echo "FAIL: approved Phase 3B merge is not in this lineage." >&2
-            exit 1
-          fi
-
-      - name: Verify validated candidate CI passed
+          persist-credentials: false
+      - name: Verify reviewed controller and execute selected operation
         env:
+          OPERATION: ${{ inputs.operation }}
+          CONFIRMATION: ${{ inputs.confirmation }}
+          RELEASE_DEPLOYMENT_ID: ${{ inputs.release_deployment_id }}
           GH_TOKEN: ${{ github.token }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          gh api "repos/$GITHUB_REPOSITORY/actions/runs?head_sha=$APPROVED_PHASE3B_COMMIT&per_page=50" > /tmp/mcc-ci.json
-          jq -e '[.workflow_runs[] | select(.name=="MCC deterministic validation" and .head_sha==env.APPROVED_PHASE3B_COMMIT and .conclusion=="success")] | length>0' /tmp/mcc-ci.json >/dev/null
-          echo "PASS: isolated database and browser validation passed at the approved feature commit."
-
-      - name: Verify required deployment secrets exist
-        env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
         shell: bash
         run: |
           set -euo pipefail
-          test -n "$VERCEL_TOKEN" || { echo "Missing GitHub Actions secret: VERCEL_TOKEN" >&2; exit 1; }
-          echo "PASS: required deployment credentials are available."
-
-  deploy-vercel-web:
-    name: Deploy Vercel web
-    needs: preflight
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Verify Vercel token can access the target project
-        env:
-          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          code="$(curl --silent --show-error --output /tmp/vercel-project.json --write-out '%{http_code}' \
-            --header "Authorization: Bearer $VERCEL_TOKEN" \
-            "https://api.vercel.com/v9/projects/$VERCEL_PROJECT_ID?teamId=$VERCEL_ORG_ID")"
-          if [ "$code" != "200" ]; then
-            echo "Vercel token cannot access the AgentEdge/message-command-center project (HTTP $code)." >&2
-            cat /tmp/vercel-project.json >&2
-            exit 1
-          fi
-          echo "PASS: Vercel token can access the target project."
-
-      - name: Create production deployment from GitHub source
-        id: deploy
-        env:
-          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          payload="$(jq -n \
-            --arg name "message-command-center" \
-            --arg project "$VERCEL_PROJECT_ID" \
-            --arg org "nicci-afk" \
-            --arg repo "comminicationstation" \
-            --arg ref "$GITHUB_SHA" \
-            --arg sha "$GITHUB_SHA" \
-            '{
-              name: $name,
-              project: $project,
-              target: "production",
-              gitSource: {
-                type: "github",
-                org: $org,
-                repo: $repo,
-                ref: $ref
-              },
-              gitMetadata: {
-                remoteUrl: "https://github.com/nicci-afk/comminicationstation",
-                commitRef: "main",
-                commitSha: $sha,
-                ci: true,
-                ciType: "github-actions",
-                rootDirectory: "apps/web"
-              },
-              projectSettings: {
-                rootDirectory: "apps/web"
-              }
-            }')"
-
-          code="$(curl --silent --show-error \
-            --output /tmp/vercel-deploy.json \
-            --write-out '%{http_code}' \
-            --request POST \
-            --url "https://api.vercel.com/v13/deployments?teamId=$VERCEL_ORG_ID" \
-            --header "Authorization: Bearer $VERCEL_TOKEN" \
-            --header "Content-Type: application/json" \
-            --data "$payload")"
-
-          if [ "$code" != "200" ] && [ "$code" != "201" ]; then
-            echo "Vercel deployment creation failed (HTTP $code)." >&2
-            cat /tmp/vercel-deploy.json >&2
-            exit 1
-          fi
-
-          deployment_id="$(jq -r '.id // empty' /tmp/vercel-deploy.json)"
-          deployment_url="$(jq -r '.url // empty' /tmp/vercel-deploy.json)"
-          if [ -z "$deployment_id" ] || [ -z "$deployment_url" ]; then
-            echo "Vercel deployment response did not contain id/url." >&2
-            cat /tmp/vercel-deploy.json >&2
-            exit 1
-          fi
-
-          echo "deployment_id=$deployment_id" >> "$GITHUB_OUTPUT"
-          echo "url=https://$deployment_url" >> "$GITHUB_OUTPUT"
-          echo "Created deployment $deployment_id"
-
-      - name: Wait for Vercel deployment readiness
-        env:
-          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-          DEPLOYMENT_ID: ${{ steps.deploy.outputs.deployment_id }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          for attempt in $(seq 1 60); do
-            curl --fail --silent --show-error \
-              --output /tmp/vercel-status.json \
-              --header "Authorization: Bearer $VERCEL_TOKEN" \
-              "https://api.vercel.com/v13/deployments/$DEPLOYMENT_ID?teamId=$VERCEL_ORG_ID"
-
-            state="$(jq -r '.readyState // .status // empty' /tmp/vercel-status.json)"
-            echo "Vercel state: $state"
-
-            if [ "$state" = "READY" ]; then
-              exit 0
-            fi
-            if [ "$state" = "ERROR" ] || [ "$state" = "CANCELED" ] || [ "$state" = "CANCELLED" ]; then
-              cat /tmp/vercel-status.json >&2
-              exit 1
-            fi
-            sleep 5
-          done
-
-          echo "Timed out waiting for Vercel deployment readiness." >&2
-          cat /tmp/vercel-status.json >&2
-          exit 1
-
-      - name: Smoke-test Executive and Trust routes
-        env:
-          URL: ${{ steps.deploy.outputs.url }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          curl --fail --silent --show-error --location "$URL/executive" >/dev/null
-          curl --fail --silent --show-error --location "$URL/trust" >/dev/null
-          echo "PASS: deployed routes returned successful responses."
+          echo 'e74edda478e1a3a8380d1fd2bbd1b81af369106eb1b9922692532173c7f85d53  scripts/mcc_frontend_release.py' | sha256sum --check --strict
+          python3 scripts/mcc_frontend_release.py
