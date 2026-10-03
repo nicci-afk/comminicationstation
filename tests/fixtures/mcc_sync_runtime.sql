@@ -85,7 +85,9 @@ begin
   if p_key = 'google_client_id' then
     -- Race injection is a genuine SQL update in an earlier RPC transaction.
     if public.runtime_setting('baseline_race') is not null then
-      update public.gmail_accounts set last_history_id = (public.runtime_setting('baseline_race') #>> '{}')::bigint;
+      update public.gmail_accounts set last_history_id = (public.runtime_setting('baseline_race') #>> '{}')::bigint
+        where id = '00000000-0000-4000-8000-000000000001'::uuid;
+      if not found then raise exception 'Missing baseline-race fixture account'; end if;
       delete from public.runtime_settings where key='baseline_race';
     end if;
     return '{"value":"mcc-fixture-client"}'::jsonb;

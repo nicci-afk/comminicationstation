@@ -377,7 +377,7 @@ if (process.argv[2] === '--prepare') {
       await assertAck(failed.id, false);
       const queued = (await jobs()).filter(j => !j.ready);
       assert.equal(queued.length, mode === 'after' ? 1 : 0, 'Commit uncertainty must be checked against real queue rows');
-      assert.equal(failed.events.find(e => e.path.endsWith('/enqueue_and_poke')).status, mode === 'after' ? 503 : 400);
+      assert.equal(failed.events.find(e => e.kind === 'local_fetch' && e.path === '/rest/v1/rpc/enqueue_and_poke').status, mode === 'after' ? 503 : 400);
       await clear(); await promote(failed.id);
       const replay = await invoke(multi());
       await state(1000, ['a', 'b'], 1, replay);
@@ -395,7 +395,7 @@ if (process.argv[2] === '--prepare') {
       const result = await run();
       await state(1000, ['a'], 0, result);
       await assertAck(result.id, mode === 'after');
-      assert.equal(result.events.find(e => e.path.endsWith('/ack_job')).status, mode === 'after' ? 503 : 400);
+      assert.equal(result.events.find(e => e.kind === 'local_fetch' && e.path === '/rest/v1/rpc/ack_job').status, mode === 'after' ? 503 : 400);
       if (mode === 'before') {
         await clear(); await promote(result.id);
         const replay = await invoke({ pages: { first: page([], undefined, '1000') } });
