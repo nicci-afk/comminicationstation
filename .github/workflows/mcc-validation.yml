@@ -91,7 +91,7 @@ jobs:
           path: test-results/phase3b-*.png
 
   agentedge-safety:
-    name: AgentEdge containment runtime preflight
+    name: Gmail checkpoint and containment runtime preflight
     runs-on: ubuntu-latest
     timeout-minutes: 25
     steps:
@@ -112,13 +112,22 @@ jobs:
           docker info
           deno --version
           supabase --version
+      - name: Preserve historical containment artifact checks
+        run: bash scripts/validate_mcc_guard_snapshot.sh
       - name: Exact-source and mocked regression tests
-        run: node --experimental-vm-modules --test tests/agentedge-safety.test.mjs tests/mcc_agentedge_materializer.test.mjs
-      - name: Isolated Edge runtime and PostgREST preflight
-        run: bash scripts/validate_mcc_agentedge_runtime.sh
+        run: node --experimental-vm-modules --test tests/agentedge-safety.test.mjs tests/gmail-sync-checkpoints.test.mjs tests/mcc_sync_materializer.test.mjs
+      - name: Materialize versioned checkpoint release
+        run: node --experimental-vm-modules scripts/materialize_mcc_sync_release.mjs "$RUNNER_TEMP/mcc-checkpoint-bundles"
+      - name: Isolated containment Edge and PostgREST preflight
+        run: bash scripts/validate_mcc_agentedge_runtime.sh "$RUNNER_TEMP/mcc-checkpoint-bundles"
+      - name: Isolated Gmail checkpoint Edge and PostgREST preflight
+        run: bash scripts/validate_mcc_sync_runtime.sh "$RUNNER_TEMP/mcc-checkpoint-bundles"
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: mcc-agentedge-runtime-evidence
-          path: test-results/mcc-agentedge-runtime/
+          name: mcc-checkpoint-runtime-evidence
+          path: |
+            test-results/mcc-agentedge-runtime/
+            test-results/mcc-sync-runtime/
+
 
