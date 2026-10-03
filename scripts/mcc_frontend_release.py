@@ -33,8 +33,8 @@ BASELINE_SHA = "37754b86f6ce910fe06903624d55cea03745ed1c"
 DOMAINS = ["message-command-center-iota.vercel.app"]
 BASELINE_URL = "message-command-center-2eg3fq85d-agentedge.vercel.app"
 BASELINE_BRANCH_ALIAS = "message-command-center-git-37754b86f6ce910fe06-3ad478-agentedge.vercel.app"
-RELEASE_AUTHORIZATION = "NOT_GRANTED"
-ROLLBACK_AUTHORIZATION = "NOT_GRANTED"
+RELEASE_AUTHORIZATION = "APPROVED"
+ROLLBACK_AUTHORIZATION = "APPROVED"
 EXPECTED_SETTINGS = {"rootDirectory": ".", "framework": "vite", "buildCommand": "AUTO", "installCommand": "AUTO", "outputDirectory": "AUTO", "nodeVersion": "24.x", "gitConnection": None}
 
 

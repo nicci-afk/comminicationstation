@@ -1,5 +1,5 @@
-# LOCAL PREPARATION ONLY. Publishing/merging does not authorize a release.
-# Deploy and rollback are separately fail-closed in the reviewed controller.
+# Manual, approved exact-candidate release with bounded rollback.
+# No push trigger; consequential operations require exact confirmation inputs.
 name: MCC Phase 3B approved production release
 
 on:
@@ -48,5 +48,5 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          echo 'e74edda478e1a3a8380d1fd2bbd1b81af369106eb1b9922692532173c7f85d53  scripts/mcc_frontend_release.py' | sha256sum --check --strict
+          echo 'b07e1a5ab318bf1be34adf515790a233a348e0d1724cbbb065ca4c9565ecc72e  scripts/mcc_frontend_release.py' | sha256sum --check --strict
           python3 scripts/mcc_frontend_release.py
