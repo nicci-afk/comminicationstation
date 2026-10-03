@@ -4,7 +4,9 @@
 // Serialized per account via an optimistic lock.
 
 import { SupabaseClient } from "@supabase/supabase-js";
-import { enqueue, getConfig, handleOptions, Job, runWorker } from "./_shared/util.ts";
+import { enqueue, getConfig, handleOptions } from "./_shared/util.ts";
+import { runSyncWorker } from "./sync-job-runtime.ts";
+import type { SyncJob as Job } from "./sync-job-runtime.ts";
 import {
   accessTokenForAccount,
   buildIngestPayload,
@@ -392,7 +394,7 @@ async function fullResync() {
 export default async function handler(req: Request): Promise<Response> {
   const opt = handleOptions(req);
   if (opt) return opt;
-  return await runWorker(req, "sync_jobs", 150, 110_000, async (db, job: Job) => {
+  return await runSyncWorker(req, async (db, job: Job) => {
     const msg = job.message;
     const accountId = msg.gmail_account_id as string;
     const account = await lockAccount(db, accountId);

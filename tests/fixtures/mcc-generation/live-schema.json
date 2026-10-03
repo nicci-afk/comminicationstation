@@ -1,0 +1,415 @@
+{
+  "tables": [
+    {
+      "table": "pgmq.q_sync_jobs",
+      "columns": [
+        {
+          "name": "msg_id",
+          "type": "int8",
+          "nullable": "NO"
+        },
+        {
+          "name": "read_ct",
+          "type": "int4",
+          "nullable": "NO"
+        },
+        {
+          "name": "enqueued_at",
+          "type": "timestamptz",
+          "nullable": "NO"
+        },
+        {
+          "name": "vt",
+          "type": "timestamptz",
+          "nullable": "NO"
+        },
+        {
+          "name": "message",
+          "type": "jsonb",
+          "nullable": "YES"
+        },
+        {
+          "name": "headers",
+          "type": "jsonb",
+          "nullable": "YES"
+        }
+      ]
+    },
+    {
+      "table": "public.gmail_accounts",
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "nullable": "NO"
+        },
+        {
+          "name": "user_id",
+          "type": "uuid",
+          "nullable": "NO"
+        },
+        {
+          "name": "email_address",
+          "type": "citext",
+          "nullable": "NO"
+        },
+        {
+          "name": "status",
+          "type": "text",
+          "nullable": "NO"
+        },
+        {
+          "name": "refresh_token_secret_id",
+          "type": "uuid",
+          "nullable": "YES"
+        },
+        {
+          "name": "last_history_id",
+          "type": "int8",
+          "nullable": "YES"
+        },
+        {
+          "name": "watch_expiration",
+          "type": "timestamptz",
+          "nullable": "YES"
+        },
+        {
+          "name": "backfill_done",
+          "type": "bool",
+          "nullable": "NO"
+        },
+        {
+          "name": "sync_locked_at",
+          "type": "timestamptz",
+          "nullable": "YES"
+        },
+        {
+          "name": "last_sync_at",
+          "type": "timestamptz",
+          "nullable": "YES"
+        },
+        {
+          "name": "last_error",
+          "type": "text",
+          "nullable": "YES"
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz",
+          "nullable": "NO"
+        },
+        {
+          "name": "has_send_scope",
+          "type": "bool",
+          "nullable": "NO"
+        }
+      ]
+    },
+    {
+      "table": "public.queue_items",
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "nullable": "NO"
+        },
+        {
+          "name": "user_id",
+          "type": "uuid",
+          "nullable": "NO"
+        },
+        {
+          "name": "thread_id",
+          "type": "uuid",
+          "nullable": "NO"
+        },
+        {
+          "name": "contact_id",
+          "type": "uuid",
+          "nullable": "YES"
+        },
+        {
+          "name": "business_id",
+          "type": "uuid",
+          "nullable": "YES"
+        },
+        {
+          "name": "state",
+          "type": "text",
+          "nullable": "NO"
+        },
+        {
+          "name": "category",
+          "type": "text",
+          "nullable": "NO"
+        },
+        {
+          "name": "priority",
+          "type": "int4",
+          "nullable": "NO"
+        },
+        {
+          "name": "priority_reasons",
+          "type": "_text",
+          "nullable": "NO"
+        },
+        {
+          "name": "channel",
+          "type": "text",
+          "nullable": "NO"
+        },
+        {
+          "name": "title",
+          "type": "text",
+          "nullable": "NO"
+        },
+        {
+          "name": "preview",
+          "type": "text",
+          "nullable": "NO"
+        },
+        {
+          "name": "sender_name",
+          "type": "text",
+          "nullable": "NO"
+        },
+        {
+          "name": "sender_identifier",
+          "type": "text",
+          "nullable": "NO"
+        },
+        {
+          "name": "is_vip",
+          "type": "bool",
+          "nullable": "NO"
+        },
+        {
+          "name": "message_count",
+          "type": "int4",
+          "nullable": "NO"
+        },
+        {
+          "name": "last_inbound_message_id",
+          "type": "uuid",
+          "nullable": "YES"
+        },
+        {
+          "name": "resolved_by_message_id",
+          "type": "uuid",
+          "nullable": "YES"
+        },
+        {
+          "name": "resolved_at",
+          "type": "timestamptz",
+          "nullable": "YES"
+        },
+        {
+          "name": "snoozed_until",
+          "type": "timestamptz",
+          "nullable": "YES"
+        },
+        {
+          "name": "sla_due_at",
+          "type": "timestamptz",
+          "nullable": "YES"
+        },
+        {
+          "name": "waiting_since",
+          "type": "timestamptz",
+          "nullable": "NO"
+        },
+        {
+          "name": "follow_up_at",
+          "type": "timestamptz",
+          "nullable": "YES"
+        },
+        {
+          "name": "escalated",
+          "type": "bool",
+          "nullable": "NO"
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz",
+          "nullable": "NO"
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamptz",
+          "nullable": "NO"
+        },
+        {
+          "name": "agentedge_relayed_at",
+          "type": "timestamptz",
+          "nullable": "YES"
+        },
+        {
+          "name": "expense_type",
+          "type": "text",
+          "nullable": "YES"
+        },
+        {
+          "name": "property_ids",
+          "type": "_uuid",
+          "nullable": "YES"
+        },
+        {
+          "name": "is_split_clone",
+          "type": "bool",
+          "nullable": "NO"
+        }
+      ]
+    }
+  ],
+  "triggers": [
+    {
+      "name": "queue_items_transition",
+      "table": "queue_items",
+      "definition": "CREATE TRIGGER queue_items_transition BEFORE UPDATE ON public.queue_items FOR EACH ROW EXECUTE FUNCTION log_queue_transition()"
+    },
+    {
+      "name": "trg_auto_expense_split",
+      "table": "queue_items",
+      "definition": "CREATE TRIGGER trg_auto_expense_split AFTER INSERT ON public.queue_items FOR EACH ROW EXECUTE FUNCTION auto_expense_split()"
+    }
+  ],
+  "functions": [
+    {
+      "acl": null,
+      "args": "queue_name text, vt integer, qty integer, conditional jsonb",
+      "name": "pgmq.read",
+      "config": null,
+      "definition": "CREATE OR REPLACE FUNCTION pgmq.read(queue_name text, vt integer, qty integer, conditional jsonb DEFAULT '{}'::jsonb)\n RETURNS SETOF pgmq.message_record\n LANGUAGE plpgsql\nAS $function$\nDECLARE\n    sql TEXT;\n    qtable TEXT := pgmq.format_table_name(queue_name, 'q');\nBEGIN\n    sql := FORMAT(\n        $QUERY$\n        WITH cte AS\n        (\n            SELECT msg_id\n            FROM pgmq.%I\n            WHERE vt <= clock_timestamp() AND CASE\n                WHEN %L != '{}'::jsonb THEN (message @> %2$L)::integer\n                ELSE 1\n            END = 1\n            ORDER BY msg_id ASC\n            LIMIT $1\n            FOR UPDATE SKIP LOCKED\n        )\n        UPDATE pgmq.%I m\n        SET\n            vt = clock_timestamp() + %L,\n            read_ct = read_ct + 1\n        FROM cte\n        WHERE m.msg_id = cte.msg_id\n        RETURNING m.msg_id, m.read_ct, m.enqueued_at, m.vt, m.message, m.headers;\n        $QUERY$,\n        qtable, conditional, qtable, make_interval(secs => vt)\n    );\n    RETURN QUERY EXECUTE sql USING qty;\nEND;\n$function$\n"
+    },
+    {
+      "acl": null,
+      "args": "queue_name text, msg_id bigint",
+      "name": "pgmq.archive",
+      "config": null,
+      "definition": "CREATE OR REPLACE FUNCTION pgmq.archive(queue_name text, msg_id bigint)\n RETURNS boolean\n LANGUAGE plpgsql\nAS $function$\nDECLARE\n    sql TEXT;\n    result BIGINT;\n    qtable TEXT := pgmq.format_table_name(queue_name, 'q');\n    atable TEXT := pgmq.format_table_name(queue_name, 'a');\nBEGIN\n    sql := FORMAT(\n        $QUERY$\n        WITH archived AS (\n            DELETE FROM pgmq.%I\n            WHERE msg_id = $1\n            RETURNING msg_id, vt, read_ct, enqueued_at, message, headers\n        )\n        INSERT INTO pgmq.%I (msg_id, vt, read_ct, enqueued_at, message, headers)\n        SELECT msg_id, vt, read_ct, enqueued_at, message, headers\n        FROM archived\n        RETURNING msg_id;\n        $QUERY$,\n        qtable, atable\n    );\n    EXECUTE sql USING msg_id INTO result;\n    RETURN NOT (result IS NULL);\nEND;\n$function$\n"
+    },
+    {
+      "acl": null,
+      "args": "queue_name text, msg_ids bigint[]",
+      "name": "pgmq.archive",
+      "config": null,
+      "definition": "CREATE OR REPLACE FUNCTION pgmq.archive(queue_name text, msg_ids bigint[])\n RETURNS SETOF bigint\n LANGUAGE plpgsql\nAS $function$\nDECLARE\n    sql TEXT;\n    qtable TEXT := pgmq.format_table_name(queue_name, 'q');\n    atable TEXT := pgmq.format_table_name(queue_name, 'a');\nBEGIN\n    sql := FORMAT(\n        $QUERY$\n        WITH archived AS (\n            DELETE FROM pgmq.%I\n            WHERE msg_id = ANY($1)\n            RETURNING msg_id, vt, read_ct, enqueued_at, message, headers\n        )\n        INSERT INTO pgmq.%I (msg_id, vt, read_ct, enqueued_at, message, headers)\n        SELECT msg_id, vt, read_ct, enqueued_at, message, headers\n        FROM archived\n        RETURNING msg_id;\n        $QUERY$,\n        qtable, atable\n    );\n    RETURN QUERY EXECUTE sql USING msg_ids;\nEND;\n$function$\n"
+    },
+    {
+      "acl": null,
+      "args": "queue_name text, msg_id bigint",
+      "name": "pgmq.delete",
+      "config": null,
+      "definition": "CREATE OR REPLACE FUNCTION pgmq.delete(queue_name text, msg_id bigint)\n RETURNS boolean\n LANGUAGE plpgsql\nAS $function$\nDECLARE\n    sql TEXT;\n    result BIGINT;\n    qtable TEXT := pgmq.format_table_name(queue_name, 'q');\nBEGIN\n    sql := FORMAT(\n        $QUERY$\n        DELETE FROM pgmq.%I\n        WHERE msg_id = $1\n        RETURNING msg_id\n        $QUERY$,\n        qtable\n    );\n    EXECUTE sql USING msg_id INTO result;\n    RETURN NOT (result IS NULL);\nEND;\n$function$\n"
+    },
+    {
+      "acl": null,
+      "args": "queue_name text, msg_ids bigint[]",
+      "name": "pgmq.delete",
+      "config": null,
+      "definition": "CREATE OR REPLACE FUNCTION pgmq.delete(queue_name text, msg_ids bigint[])\n RETURNS SETOF bigint\n LANGUAGE plpgsql\nAS $function$\nDECLARE\n    sql TEXT;\n    qtable TEXT := pgmq.format_table_name(queue_name, 'q');\nBEGIN\n    sql := FORMAT(\n        $QUERY$\n        DELETE FROM pgmq.%I\n        WHERE msg_id = ANY($1)\n        RETURNING msg_id\n        $QUERY$,\n        qtable\n    );\n    RETURN QUERY EXECUTE sql USING msg_ids;\nEND;\n$function$\n"
+    },
+    {
+      "acl": null,
+      "args": "queue_name text, msg jsonb, headers jsonb, delay timestamp with time zone",
+      "name": "pgmq.send",
+      "config": null,
+      "definition": "CREATE OR REPLACE FUNCTION pgmq.send(queue_name text, msg jsonb, headers jsonb, delay timestamp with time zone)\n RETURNS SETOF bigint\n LANGUAGE plpgsql\nAS $function$\nDECLARE\n    sql TEXT;\n    qtable TEXT := pgmq.format_table_name(queue_name, 'q');\nBEGIN\n    sql := FORMAT(\n            $QUERY$\n        INSERT INTO pgmq.%I (vt, message, headers)\n        VALUES ($2, $1, $3)\n        RETURNING msg_id;\n        $QUERY$,\n            qtable\n           );\n    RETURN QUERY EXECUTE sql USING msg, delay, headers;\nEND;\n$function$\n"
+    },
+    {
+      "acl": null,
+      "args": "queue_name text, msg jsonb",
+      "name": "pgmq.send",
+      "config": null,
+      "definition": "CREATE OR REPLACE FUNCTION pgmq.send(queue_name text, msg jsonb)\n RETURNS SETOF bigint\n LANGUAGE sql\nAS $function$\n    SELECT * FROM pgmq.send(queue_name, msg, NULL, clock_timestamp());\n$function$\n"
+    },
+    {
+      "acl": null,
+      "args": "queue_name text, msg jsonb, headers jsonb",
+      "name": "pgmq.send",
+      "config": null,
+      "definition": "CREATE OR REPLACE FUNCTION pgmq.send(queue_name text, msg jsonb, headers jsonb)\n RETURNS SETOF bigint\n LANGUAGE sql\nAS $function$\n    SELECT * FROM pgmq.send(queue_name, msg, headers, clock_timestamp());\n$function$\n"
+    },
+    {
+      "acl": null,
+      "args": "queue_name text, msg jsonb, delay integer",
+      "name": "pgmq.send",
+      "config": null,
+      "definition": "CREATE OR REPLACE FUNCTION pgmq.send(queue_name text, msg jsonb, delay integer)\n RETURNS SETOF bigint\n LANGUAGE sql\nAS $function$\n    SELECT * FROM pgmq.send(queue_name, msg, NULL, clock_timestamp() + make_interval(secs => delay));\n$function$\n"
+    },
+    {
+      "acl": null,
+      "args": "queue_name text, msg jsonb, delay timestamp with time zone",
+      "name": "pgmq.send",
+      "config": null,
+      "definition": "CREATE OR REPLACE FUNCTION pgmq.send(queue_name text, msg jsonb, delay timestamp with time zone)\n RETURNS SETOF bigint\n LANGUAGE sql\nAS $function$\n    SELECT * FROM pgmq.send(queue_name, msg, NULL, delay);\n$function$\n"
+    },
+    {
+      "acl": null,
+      "args": "queue_name text, msg jsonb, headers jsonb, delay integer",
+      "name": "pgmq.send",
+      "config": null,
+      "definition": "CREATE OR REPLACE FUNCTION pgmq.send(queue_name text, msg jsonb, headers jsonb, delay integer)\n RETURNS SETOF bigint\n LANGUAGE sql\nAS $function$\n    SELECT * FROM pgmq.send(queue_name, msg, headers, clock_timestamp() + make_interval(secs => delay));\n$function$\n"
+    },
+    {
+      "acl": [
+        "postgres=X/postgres",
+        "service_role=X/postgres"
+      ],
+      "args": "p_queue text, p_msg jsonb",
+      "name": "public.enqueue_and_poke",
+      "config": [
+        "search_path=public"
+      ],
+      "definition": "CREATE OR REPLACE FUNCTION public.enqueue_and_poke(p_queue text, p_msg jsonb)\n RETURNS bigint\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\ndeclare\n  v_msg_id bigint;\nbegin\n  v_msg_id := pgmq.send(p_queue, p_msg);\n  perform public.poke_worker(p_queue);\n  return v_msg_id;\nend;\n$function$\n"
+    },
+    {
+      "acl": [
+        "postgres=X/postgres",
+        "service_role=X/postgres"
+      ],
+      "args": "p_queue text, p_n integer, p_vt integer",
+      "name": "public.claim_jobs",
+      "config": [
+        "search_path=public"
+      ],
+      "definition": "CREATE OR REPLACE FUNCTION public.claim_jobs(p_queue text, p_n integer, p_vt integer)\n RETURNS TABLE(msg_id bigint, read_ct integer, message jsonb)\n LANGUAGE sql\n SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\n  select m.msg_id, m.read_ct, m.message\n  from pgmq.read(p_queue, p_vt, p_n) m;\n$function$\n"
+    },
+    {
+      "acl": [
+        "postgres=X/postgres",
+        "service_role=X/postgres"
+      ],
+      "args": "p_queue text, p_msg_id bigint",
+      "name": "public.ack_job",
+      "config": [
+        "search_path=public"
+      ],
+      "definition": "CREATE OR REPLACE FUNCTION public.ack_job(p_queue text, p_msg_id bigint)\n RETURNS void\n LANGUAGE sql\n SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\n  select pgmq.delete(p_queue, p_msg_id);\n$function$\n"
+    },
+    {
+      "acl": [
+        "postgres=X/postgres",
+        "service_role=X/postgres"
+      ],
+      "args": "p_queue text, p_msg_id bigint, p_message jsonb, p_error text",
+      "name": "public.dead_letter_job",
+      "config": [
+        "search_path=public"
+      ],
+      "definition": "CREATE OR REPLACE FUNCTION public.dead_letter_job(p_queue text, p_msg_id bigint, p_message jsonb, p_error text)\n RETURNS void\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\nbegin\n  insert into public.jobs_dead (queue, msg_id, message, error)\n  values (p_queue, p_msg_id, p_message, p_error);\n  perform pgmq.delete(p_queue, p_msg_id);\nend;\n$function$\n"
+    },
+    {
+      "acl": [
+        "postgres=X/postgres",
+        "service_role=X/postgres"
+      ],
+      "args": "p_gmail_account_id uuid, p jsonb",
+      "name": "public.ingest_email_message",
+      "config": [
+        "search_path=public"
+      ],
+      "definition": "CREATE OR REPLACE FUNCTION public.ingest_email_message(p_gmail_account_id uuid, p jsonb)\n RETURNS jsonb\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\nDECLARE\n  v_acct public.gmail_accounts%rowtype;\n  v_user uuid;\n  v_thread_id uuid;\n  v_message_id uuid;\n  v_contact_id uuid;\n  v_contact_kind text;\n  v_is_vip boolean := false;\n  v_sent_at timestamptz := (p ->> 'sent_at')::timestamptz;\n  v_direction text := p ->> 'direction';\n  v_from text := lower(coalesce(p ->> 'from_identifier', ''));\n  v_is_bulk boolean := coalesce((p -> 'bulk' ->> 'is_bulk')::boolean, false);\n  v_backlog boolean := coalesce((p ->> 'backlog')::boolean, false);\n  v_rule record;\n  v_cache public.sender_triage_cache%rowtype;\n  v_business uuid;\n  v_category text;\n  v_action text;\n  v_priority int := 50;\n  v_reasons text[] := '{}';\n  v_state text;\n  v_needs_model boolean := false;\n  v_item_id uuid;\n  v_existing public.queue_items%rowtype;\n  v_direct boolean;\n  v_default_business uuid;\n  v_rules_decided boolean := false;\nBEGIN\n  SELECT * INTO v_acct FROM public.gmail_accounts WHERE id = p_gmail_account_id;\n  IF NOT FOUND THEN\n    RAISE EXCEPTION 'unknown gmail account %', p_gmail_account_id;\n  END IF;\n  v_user := v_acct.user_id;\n\n  -- thread upsert\n  INSERT INTO public.threads (user_id, channel, gmail_account_id, provider_thread_id, subject, last_message_at)\n  VALUES (v_user, 'email', p_gmail_account_id, p ->> 'thread_provider_id',\n          coalesce(p ->> 'subject', ''), v_sent_at)\n  ON CONFLICT (gmail_account_id, provider_thread_id) WHERE gmail_account_id IS NOT NULL\n  DO UPDATE SET last_message_at = greatest(threads.last_message_at, excluded.last_message_at),\n               subject = CASE WHEN threads.subject = '' THEN excluded.subject ELSE threads.subject END\n  RETURNING id INTO v_thread_id;\n\n  -- contact upsert (inbound sender only)\n  IF v_direction = 'inbound' AND v_from <> '' THEN\n    SELECT c.id, c.kind, c.is_vip INTO v_contact_id, v_contact_kind, v_is_vip\n    FROM public.contact_channels ch\n    JOIN public.contacts c ON c.id = ch.contact_id\n    WHERE ch.user_id = v_user AND ch.channel_type = 'email' AND ch.canonical_value = v_from;\n    v_is_vip := coalesce(v_is_vip, false);\n    IF v_contact_id IS NULL THEN\n      INSERT INTO public.contacts (user_id, display_name, kind)\n      VALUES (v_user, coalesce(nullif(p ->> 'from_name', ''), v_from),\n              CASE WHEN v_is_bulk THEN 'automated' ELSE 'unknown' END)\n      RETURNING id, kind INTO v_contact_id, v_contact_kind;\n      INSERT INTO public.contact_channels (user_id, contact_id, channel_type, raw_value, canonical_value)\n      VALUES (v_user, v_contact_id, 'email', coalesce(p ->> 'from_identifier', ''), v_from)\n      ON CONFLICT DO NOTHING;\n    ELSE\n      UPDATE public.contacts SET last_seen_at = now() WHERE id = v_contact_id;\n    END IF;\n\n    -- Auto-discover Reply-To address as an additional email channel.\n    -- Silently adds it if it differs from From; safe to re-run (on conflict do nothing).\n    INSERT INTO public.contact_channels (user_id, contact_id, channel_type, raw_value, canonical_value)\n    SELECT v_user, v_contact_id, 'email', rt.addr, rt.addr\n    FROM (\n      SELECT lower(trim(\n        CASE WHEN (h->>'value') ~ '<[^>]+@[^>]+>'\n             THEN substring(h->>'value' FROM '<([^>]+@[^>]+)>')\n             ELSE trim(h->>'value') END\n      )) AS addr\n      FROM jsonb_array_elements(coalesce(p->'headers', '[]'::jsonb)) h\n      WHERE lower(h->>'name') = 'reply-to'\n      LIMIT 1\n    ) rt\n    WHERE rt.addr <> '' AND rt.addr <> v_from AND rt.addr LIKE '%@%'\n    ON CONFLICT DO NOTHING;\n  END IF;\n\n  -- message insert (dedupe on provider id)\n  INSERT INTO public.messages (\n    user_id, thread_id, contact_id, direction, channel, provider, gmail_account_id,\n    provider_message_id, rfc822_message_id, in_reply_to, references_ids,\n    from_name, from_identifier, to_identifiers, cc_identifiers,\n    subject, snippet, body_text, sent_at, labels, is_unread, headers\n  ) VALUES (\n    v_user, v_thread_id, v_contact_id, v_direction, 'email', 'gmail', p_gmail_account_id,\n    p ->> 'provider_message_id', p ->> 'rfc822_message_id', p ->> 'in_reply_to',\n    coalesce((SELECT array_agg(x) FROM jsonb_array_elements_text(p -> 'references_ids') x), '{}'),\n    coalesce(p ->> 'from_name', ''), v_from,\n    coalesce((SELECT array_agg(lower(x)) FROM jsonb_array_elements_text(p -> 'to_identifiers') x), '{}'),\n    coalesce((SELECT array_agg(lower(x)) FROM jsonb_array_elements_text(p -> 'cc_identifiers') x), '{}'),\n    coalesce(p ->> 'subject', ''), coalesce(p ->> 'snippet', ''), p ->> 'body_text',\n    v_sent_at,\n    coalesce((SELECT array_agg(x) FROM jsonb_array_elements_text(p -> 'labels') x), '{}'),\n    coalesce((p ->> 'is_unread')::boolean, false),\n    coalesce(p -> 'headers', '{}'::jsonb)\n  )\n  ON CONFLICT (gmail_account_id, provider_message_id) WHERE gmail_account_id IS NOT NULL\n  DO NOTHING\n  RETURNING id INTO v_message_id;\n\n  IF v_message_id IS NULL THEN\n    RETURN jsonb_build_object('status', 'duplicate');\n  END IF;\n\n  -- ============================================ outbound: responded detection\n  IF v_direction = 'outbound' THEN\n    PERFORM set_config('app.transition_reason', 'reply_observed', true);\n    FOR v_existing IN\n      SELECT qi.* FROM public.queue_items qi\n      JOIN public.messages li ON li.id = qi.last_inbound_message_id\n      WHERE qi.user_id = v_user\n        AND qi.state IN ('new', 'needs_attention', 'snoozed', 'backlog', 'fyi')\n        AND li.sent_at < v_sent_at\n        AND (\n          qi.thread_id = v_thread_id\n          OR (li.rfc822_message_id IS NOT NULL AND li.rfc822_message_id = p ->> 'in_reply_to')\n          OR (li.rfc822_message_id IS NOT NULL\n              AND li.rfc822_message_id = ANY (\n                coalesce((SELECT array_agg(x) FROM jsonb_array_elements_text(p -> 'references_ids') x), '{}')))\n        )\n    LOOP\n      IF EXISTS (\n        SELECT 1 FROM public.messages li\n        WHERE li.id = v_existing.last_inbound_message_id\n          AND li.from_identifier = ANY (\n            coalesce((SELECT array_agg(lower(x)) FROM jsonb_array_elements_text(p -> 'to_identifiers') x), '{}')\n            || coalesce((SELECT array_agg(lower(x)) FROM jsonb_array_elements_text(p -> 'cc_identifiers') x), '{}')\n          )\n      ) THEN\n        PERFORM set_config('app.transition_evidence',\n          jsonb_build_object('resolved_by_message_id', v_message_id,\n                             'rfc822_message_id', p ->> 'rfc822_message_id',\n                             'sent_at', p ->> 'sent_at')::text, true);\n        UPDATE public.queue_items\n        SET state = 'responded',\n            resolved_by_message_id = v_message_id,\n            resolved_at = v_sent_at\n        WHERE id = v_existing.id;\n      ELSE\n        INSERT INTO public.queue_item_events\n          (user_id, queue_item_id, from_state, to_state, actor, reason, evidence)\n        VALUES (v_user, v_existing.id, v_existing.state, v_existing.state, 'system',\n                'forward_observed_not_reply',\n                jsonb_build_object('message_id', v_message_id));\n      END IF;\n    END LOOP;\n    RETURN jsonb_build_object('status', 'ok', 'message_id', v_message_id, 'direction', 'outbound');\n  END IF;\n\n  -- ============================================ inbound: deterministic triage\n  SELECT id INTO v_default_business FROM public.businesses\n  WHERE user_id = v_user AND is_default LIMIT 1;\n\n  -- rule matching, most-specific wins for business/category/action\n  FOR v_rule IN\n    SELECT r.*,\n      CASE r.rule_type\n        WHEN 'from_email' THEN 1 WHEN 'to_email' THEN 2\n        WHEN 'from_domain' THEN 3 WHEN 'subject_contains' THEN 4 END AS specificity\n    FROM public.triage_rules r\n    WHERE r.user_id = v_user AND r.enabled\n      AND (\n        (r.rule_type = 'from_email' AND lower(r.pattern) = v_from)\n        OR (r.rule_type = 'from_domain' AND v_from LIKE '%@' || lower(r.pattern))\n        OR (r.rule_type = 'to_email' AND lower(r.pattern) = ANY (\n              coalesce((SELECT array_agg(lower(x)) FROM jsonb_array_elements_text(p -> 'to_identifiers') x), '{}')))\n        OR (r.rule_type = 'subject_contains' AND position(lower(r.pattern) IN lower(coalesce(p ->> 'subject', ''))) > 0)\n      )\n    ORDER BY specificity\n  LOOP\n    v_business  := coalesce(v_business,  v_rule.business_id);\n    v_category  := coalesce(v_category,  v_rule.category);\n    v_action    := coalesce(v_action,    v_rule.action);\n    v_priority  := v_priority + v_rule.priority_delta;\n    IF v_rule.priority_delta <> 0 THEN\n      v_reasons := v_reasons || format('rule %s:%s (%s)', v_rule.rule_type, v_rule.pattern, v_rule.priority_delta);\n    END IF;\n    IF v_rule.mark_vip THEN v_is_vip := true; END IF;\n    v_rules_decided := true;\n  END LOOP;\n\n  -- sender cache (never overrides an explicit rule)\n  SELECT * INTO v_cache FROM public.sender_triage_cache\n  WHERE user_id = v_user AND sender_key = v_from;\n  IF FOUND THEN\n    v_business := coalesce(v_business, v_cache.business_id);\n    v_category := coalesce(v_category, v_cache.category);\n    IF v_cache.contact_kind IS NOT NULL AND v_contact_kind = 'unknown' THEN\n      UPDATE public.contacts SET kind = v_cache.contact_kind WHERE id = v_contact_id;\n      v_contact_kind := v_cache.contact_kind;\n    END IF;\n  END IF;\n\n  -- single-business contacts inherit that business\n  IF v_business IS NULL AND v_contact_id IS NOT NULL THEN\n    SELECT min(business_id::text)::uuid INTO v_business\n    FROM public.contact_business_links\n    WHERE contact_id = v_contact_id\n    HAVING count(DISTINCT business_id) = 1;\n  END IF;\n\n  v_direct := lower(v_acct.email_address::text) = ANY (\n    coalesce((SELECT array_agg(lower(x)) FROM jsonb_array_elements_text(p -> 'to_identifiers') x), '{}'));\n\n  -- category default\n  IF v_category IS NULL THEN\n    IF v_is_bulk THEN\n      v_category := coalesce(nullif(p -> 'bulk' ->> 'suggested_category', ''), 'newsletter');\n    ELSIF v_direct AND coalesce(v_contact_kind, 'unknown') IN ('human', 'unknown') THEN\n      v_category := 'needs_reply';\n    ELSE\n      v_category := 'other';\n    END IF;\n  END IF;\n\n  -- state decision\n  IF v_backlog THEN\n    v_state := 'backlog';\n  ELSIF v_action = 'suppress' THEN\n    v_state := 'suppressed';\n  ELSIF v_action = 'fyi' OR v_is_bulk THEN\n    v_state := 'fyi';\n  ELSIF v_action = 'needs_attention' THEN\n    v_state := 'needs_attention';\n  ELSIF v_category IN (\n    'needs_reply', 'urgent', 'scheduling',\n    'booking', 'lead', 'agent_to_agent', 'lender', 'title'\n  ) THEN\n    v_state := 'needs_attention';\n  ELSE\n    v_state := 'fyi';\n  END IF;\n\n  -- priority scoring (base 50, clamped 0..100, reasons recorded for trust UX)\n  IF v_is_vip THEN\n    v_priority := v_priority + 25;\n    v_reasons  := v_reasons || array['VIP contact'];\n  END IF;\n  IF v_contact_id IS NOT NULL AND EXISTS (\n    SELECT 1 FROM public.contacts WHERE id = v_contact_id AND active_client\n  ) THEN\n    v_priority := v_priority + 20;\n    v_reasons  := v_reasons || array['active client'];\n  END IF;\n  IF v_direct THEN\n    v_priority := v_priority + 10;\n    v_reasons  := v_reasons || array['addressed directly to you'];\n  END IF;\n  v_priority := v_priority + CASE v_category\n    WHEN 'urgent'            THEN  20\n    WHEN 'needs_reply'       THEN  10\n    WHEN 'booking'           THEN  15\n    WHEN 'lead'              THEN  15\n    WHEN 'lender'            THEN  12\n    WHEN 'title'             THEN  12\n    WHEN 'agent_to_agent'    THEN  10\n    WHEN 'scheduling'        THEN   8\n    WHEN 'bdm'               THEN   5\n    WHEN 'possible_supplier' THEN   5\n    WHEN 'promotion'         THEN -25\n    WHEN 'newsletter'        THEN -25\n    WHEN 'notification'      THEN -15\n    WHEN 'receipt'           THEN -10\n    WHEN 'expense'           THEN  -5\n    ELSE 0 END;\n  IF v_category NOT IN ('fyi', 'notification', 'newsletter', 'promotion', 'other') THEN\n    v_reasons := v_reasons || ('category: ' || v_category);\n  END IF;\n  IF v_business IS NOT NULL THEN\n    v_priority := v_priority + coalesce(\n      (SELECT priority_weight FROM public.businesses WHERE id = v_business), 0);\n  END IF;\n  v_priority := greatest(0, least(100, v_priority));\n\n  -- model triage needed? Only non-bulk attention items whose business/kind rules+cache could not decide.\n  v_needs_model := (NOT v_is_bulk)\n    AND v_state = 'needs_attention'\n    AND NOT v_backlog\n    AND (v_business IS NULL OR coalesce(v_contact_kind, 'unknown') = 'unknown')\n    AND NOT v_rules_decided\n    AND v_cache.id IS NULL;\n\n  -- queue item: reuse the live episode for this thread or open a new one\n  SELECT * INTO v_existing FROM public.queue_items\n  WHERE thread_id = v_thread_id\n    AND state IN ('new', 'needs_attention', 'snoozed', 'awaiting_reply', 'backlog', 'fyi')\n  LIMIT 1;\n\n  IF FOUND THEN\n    PERFORM set_config('app.transition_reason', 'new_inbound_message', true);\n    UPDATE public.queue_items\n    SET message_count            = message_count + 1,\n        last_inbound_message_id  = v_message_id,\n        preview  = coalesce(nullif(p ->> 'snippet', ''), preview),\n        title    = CASE WHEN title = '' THEN coalesce(p ->> 'subject', '') ELSE title END,\n        priority = greatest(priority, v_priority),\n        is_vip   = is_vip OR v_is_vip,\n        state    = CASE\n                     WHEN state IN ('awaiting_reply', 'snoozed') THEN 'needs_attention'\n                     ELSE state END,\n        snoozed_until = CASE WHEN state = 'snoozed' THEN NULL ELSE snoozed_until END,\n        waiting_since = CASE WHEN state IN ('awaiting_reply', 'snoozed') THEN now() ELSE waiting_since END\n    WHERE id = v_existing.id\n    RETURNING id INTO v_item_id;\n  ELSE\n    INSERT INTO public.queue_items (\n      user_id, thread_id, contact_id, business_id, state, category, priority,\n      priority_reasons, channel, title, preview, sender_name, sender_identifier,\n      is_vip, last_inbound_message_id, sla_due_at\n    ) VALUES (\n      v_user, v_thread_id, v_contact_id, coalesce(v_business, v_default_business),\n      v_state, v_category, v_priority, v_reasons, 'email',\n      coalesce(p ->> 'subject', ''), coalesce(p ->> 'snippet', ''),\n      coalesce(p ->> 'from_name', ''), v_from, v_is_vip, v_message_id,\n      CASE WHEN v_state = 'needs_attention'\n           THEN now() + CASE WHEN v_priority >= 75 THEN INTERVAL '1 day' ELSE INTERVAL '2 days' END\n           END\n    ) RETURNING id INTO v_item_id;\n  END IF;\n\n  -- cache the decision for this sender (rules-decided only; user always wins)\n  IF v_rules_decided AND v_business IS NOT NULL THEN\n    INSERT INTO public.sender_triage_cache\n      (user_id, sender_key, business_id, category, needs_reply, contact_kind, decided_by)\n    VALUES (v_user, v_from, v_business, v_category, v_state = 'needs_attention',\n            coalesce(v_contact_kind, 'unknown'), 'rules')\n    ON CONFLICT (user_id, sender_key) DO UPDATE\n    SET business_id  = excluded.business_id,\n        category     = excluded.category,\n        needs_reply  = excluded.needs_reply,\n        updated_at   = now()\n    WHERE sender_triage_cache.decided_by <> 'user';\n  END IF;\n\n  RETURN jsonb_build_object(\n    'status', 'ok', 'message_id', v_message_id, 'queue_item_id', v_item_id,\n    'state', v_state, 'needs_model_triage', v_needs_model,\n    'contact_id', v_contact_id\n  );\nEND;\n$function$\n"
+    }
+  ]
+}
