@@ -10,6 +10,7 @@ import {
   requireWorkerAuth,
   serviceClient,
 } from "./_shared/util.ts";
+import { agentedgeWritePolicy } from "./_shared/agentedge-safety.ts";
 
 const AGENTEDGE_URL = "https://iitrvppynxisvhztbybw.supabase.co";
 const AE_USER_ID = "367a5e0f-4438-44f6-b29d-88bfb134826c";
@@ -57,6 +58,11 @@ export default async function handler(req: Request): Promise<Response> {
   const db = serviceClient();
 
   await requireWorkerAuth(req, db);
+
+  const policy = await agentedgeWritePolicy(db, MCC_USER_ID);
+  if (!policy.allowed) {
+    return json({ ok: false, error: "AgentEdge automatic writes are paused", ...policy, relayed: 0 }, 409);
+  }
 
   const aeKey = await getUserSecret(db, MCC_USER_ID, "agentedge_service_key");
   if (!aeKey) {
