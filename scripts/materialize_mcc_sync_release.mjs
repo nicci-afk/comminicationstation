@@ -13,7 +13,7 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const BASE = 'f913bd8c208cce1fd4c42a3f14a5141d89d55ea0';
 const PROJECT = 'bgpjpomqrnwsdmrofudb';
 const REPOSITORY = 'nicci-afk/comminicationstation';
-const MANIFEST_PIN = '7a6a81d7aaaf85325115ca2471620eb5de143d75159227c7fc072dc8cd31f4a7';
+const MANIFEST_PIN = '20cabb6c4351618a9b28fbaa8a023212a0df3d73b367da477b961b461e0a425b';
 const NAMES = {
   "api": [
     "api/_shared/agentedge-safety.ts",

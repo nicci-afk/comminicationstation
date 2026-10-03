@@ -370,7 +370,7 @@
           "repository_path": "supabase/functions/workers/gmail-sync-worker.ts",
           "baseline_git_blob": "64c7feda3783ceaf976fb0b3b1af6932d46a6219",
           "baseline_sha256": "acbe3f757abeb0bd0c7b42b20b90ebe8a8dcc767f60b30618ee75aa74a608cd3",
-          "candidate_sha256": "554e54298b1044a6db6abc4191d7f576b7c8959c4e99d683013721a5b7e03614"
+          "candidate_sha256": "e87596b75b5e1bc9c7bef47acd2bef36f0b347dae6f0eb68e79176e294388629"
         },
         {
           "name": "index.ts",

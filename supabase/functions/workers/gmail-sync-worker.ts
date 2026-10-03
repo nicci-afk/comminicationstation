@@ -21,15 +21,22 @@ const BACKLOG_CAP = 1500;
 type LockedAccount = GmailAccountRow & { sync_locked_at: string };
 
 async function lockAccount(db: SupabaseClient, id: string): Promise<LockedAccount | null> {
-  const { data, error } = await db
-    .from("gmail_accounts")
-    .update({ sync_locked_at: new Date().toISOString() })
-    .eq("id", id)
-    .or(`sync_locked_at.is.null,sync_locked_at.lt.${new Date(Date.now() - 180_000).toISOString()}`)
-    .select()
-    .maybeSingle();
-  if (error) throw new Error(`lock gmail account: ${error.message}`);
-  return (data as LockedAccount) ?? null;
+  const now = Date.now();
+  const lockedAt = new Date(now).toISOString();
+  const expiredBefore = new Date(now - 180_000).toISOString();
+  // PostgREST can reapply an OR filter to the updated RETURNING row, hiding
+  // a lock that was actually acquired (postgrest/postgrest#3707). Each simple
+  // predicate below is still one atomic compare-and-set, never a read/write
+  // pair. An uncertain response throws; it must not fall through or do work.
+  for (const unlocked of [true, false]) {
+    const query = db.from("gmail_accounts").update({ sync_locked_at: lockedAt }).eq("id", id);
+    const { data, error } = await (unlocked
+      ? query.is("sync_locked_at", null)
+      : query.lt("sync_locked_at", expiredBefore)).select().maybeSingle();
+    if (error) throw new Error(`lock gmail account: ${error.message}`);
+    if (data) return data as LockedAccount;
+  }
+  return null;
 }
 
 // Fence writes by the exact lock acquired, not merely the account id. An old

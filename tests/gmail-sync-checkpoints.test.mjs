@@ -52,6 +52,7 @@ async function fixture(options = {}, variant = 'candidate') {
         if (table === 'gmail_accounts') {
           let matches = q.filters.every(([op, col, val]) => {
             if (op === 'eq' || op === 'is') return same(state.account[col], val);
+            if (op === 'lt') return state.account[col] != null && Date.parse(state.account[col]) < Date.parse(val);
             if (op === 'or') return state.account.sync_locked_at == null || Date.parse(state.account.sync_locked_at) < state.now - 180_000;
             throw new Error(`Unmocked account filter: ${op}`);
           });
@@ -396,12 +397,65 @@ test('lock read failure is not acknowledged as successful work', async () => {
   assert.equal(f.count('fetch'), 0);
 });
 
+const lockAttempts = f => f.state.trace.filter(e => e.table === 'gmail_accounts' && e.payload?.sync_locked_at);
+test('unlocked account is acquired by one atomic IS NULL update', async () => {
+  const f = await fixture();
+  assert.equal((await f.run()).acked, true);
+  assert.equal(lockAttempts(f).length, 1);
+  assert.deepEqual(lockAttempts(f)[0].filters, [['eq', 'id', ACCOUNT], ['is', 'sync_locked_at', null]]);
+});
+
+test('expired account is acquired by a second atomic LT update', async () => {
+  const f = await fixture({ account: { sync_locked_at: '2026-10-02T18:56:59.000Z' } });
+  assert.equal((await f.run()).acked, true);
+  const attempts = lockAttempts(f);
+  assert.equal(attempts.length, 2);
+  assert.deepEqual(attempts[0].filters, [['eq', 'id', ACCOUNT], ['is', 'sync_locked_at', null]]);
+  assert.deepEqual(attempts[1].filters, [['eq', 'id', ACCOUNT], ['lt', 'sync_locked_at', '2026-10-02T18:57:00.000Z']]);
+  assert.equal(attempts[0].payload.sync_locked_at, attempts[1].payload.sync_locked_at);
+  assert.equal(f.state.account.sync_locked_at, null);
+  assert.deepEqual(ids(f), ['a']);
+});
+
+test('failed expired-lock attempt stays retryable without provider work', async () => {
+  const prior = '2026-10-02T18:56:59.000Z';
+  const f = await fixture({ account: { sync_locked_at: prior }, hook(e) {
+    if (e.phase === 'before' && e.table === 'gmail_accounts' && e.filters.some(([op]) => op === 'lt')) return fail('expired lock failure');
+  } });
+  assert.equal((await f.run()).acked, false);
+  assert.equal(lockAttempts(f).length, 2);
+  assert.equal(f.state.account.sync_locked_at, prior);
+  assert.equal(f.count('fetch'), 0);
+});
+
+test('replacement acquired between lock attempts cannot be stolen', async () => {
+  const replacement = '2026-10-02T19:00:00.001Z';
+  const f = await fixture({ account: { sync_locked_at: '2026-10-02T18:56:59.000Z' }, hook(e, s) {
+    if (e.phase === 'after' && e.table === 'gmail_accounts' && e.filters.some(([op, col]) => op === 'is' && col === 'sync_locked_at')) s.account.sync_locked_at = replacement;
+  } });
+  assert.equal((await f.run()).acked, false);
+  assert.equal(lockAttempts(f).length, 2);
+  assert.equal(f.state.account.sync_locked_at, replacement);
+  assert.equal(f.count('fetch'), 0);
+});
+
+test('uncertain committed lock response prevents fallback or provider work', async () => {
+  const f = await fixture({ hook(e) {
+    if (e.phase === 'after' && e.table === 'gmail_accounts' && e.payload?.sync_locked_at) return fail('connection lost after lock commit');
+  } });
+  assert.equal((await f.run()).acked, false);
+  assert.equal(lockAttempts(f).length, 1);
+  assert.equal(f.state.account.sync_locked_at, '2026-10-02T19:00:00.000Z');
+  assert.equal(f.count('fetch'), 0);
+});
+
 test('contended lock preserves continuation job instead of discarding it', async () => {
   const f = await fixture({ account: { sync_locked_at: '2026-10-02T19:00:00.000Z' } });
   const job = { ...initial, history_cursor: { start_history_id: '100', page_token: 'next' } };
   assert.equal((await f.run(job)).acked, false);
   assert.equal(f.count('fetch'), 0);
   assert.equal(f.state.account.sync_locked_at, '2026-10-02T19:00:00.000Z');
+  assert.equal(lockAttempts(f).length, 2);
 });
 
 test('lost lock fences checkpoint and unlock writes even after message commit', async () => {

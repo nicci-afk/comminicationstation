@@ -8,7 +8,7 @@ import { stripTypeScriptTypes } from 'node:module';
 import test from 'node:test';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
-const WORKER_SHA = '554e54298b1044a6db6abc4191d7f576b7c8959c4e99d683013721a5b7e03614';
+const WORKER_SHA = 'e87596b75b5e1bc9c7bef47acd2bef36f0b347dae6f0eb68e79176e294388629';
 const hash = bytes => crypto.createHash('sha256').update(bytes).digest('hex');
 function tree(dir, base = dir) {
   return fs.readdirSync(dir, { withFileTypes: true }).flatMap(entry => {
@@ -178,7 +178,7 @@ if (process.argv[2] === '--prepare') {
       const denied = await localFetch('/rest/v1/rpc/claim_jobs', { method: 'POST', headers: { apikey: anon, authorization: `Bearer ${anon}`, 'content-type': 'application/json' }, body: JSON.stringify({ p_queue: 'sync_jobs', p_n: 3, p_vt: 150 }) });
       assert([401, 403].includes(denied.status), `Anonymous RPC unexpectedly available: ${denied.status}`);
     });
-    await t.test('native REST lock representation agrees with persisted SQL and simple-filter controls', async () => {
+    await t.test('native REST reproduces legacy OR omission while simple CAS agrees with SQL', async () => {
       // Diagnostics only: execute the same synthetic CAS through native REST
       // and direct local SQL. Never alter or emulate a candidate response.
       const targetLock = BASE_TIME;
@@ -242,12 +242,34 @@ if (process.argv[2] === '--prepare') {
         assert.equal(row.status, 200, `${row.name}: native REST failed`);
         assert.equal(Date.parse(row.persistedAfterRest.sync_locked_at), Date.parse(row.expectedPersistedLock), `${row.name}: REST persisted incorrect lock`);
       }
-      for (const row of diagnostics.cases.filter(row => row.name.startsWith('simple-'))) {
-        assert.equal(row.returnedRowCount, row.expectedRows, `${row.name}: simple filter returned incorrect CAS row count`);
-      }
+      // Characterize the legacy bug observed in diagnostic commit 9f4d163;
+      // candidate CAS assertions below still require the exact affected row.
+      // A runtime version change requires reviewing this characterization.
+      assert.equal(diagnostics.postgrestVersion, '14.3');
       for (const row of diagnostics.cases) {
-        assert.equal(row.returnedRowCount, row.expectedRows, `${row.name}: returned CAS representation disagrees; inspect lock-representation-diagnostics.json and PostgREST version`);
-        if (row.expectedRows) assert.equal(Date.parse(row.returned[0].sync_locked_at), Date.parse(targetLock));
+        const expectedReturned = row.name.startsWith('or-') ? 0 : row.expectedRows;
+        assert.equal(row.returnedRowCount, expectedReturned, `${row.name}: unexpected native CAS representation; inspect lock-representation-diagnostics.json and PostgREST version`);
+        if (expectedReturned) assert.equal(Date.parse(row.returned[0].sync_locked_at), Date.parse(targetLock));
+      }
+    });
+    await t.test('two atomic simple-filter attempts choose exactly one concurrent lock owner', async () => {
+      for (const prior of [null, '2026-10-02T18:56:59.123Z']) {
+        await reset('concurrent native CAS', { sync_locked_at: prior });
+        async function acquire(lock) {
+          for (const filter of ['is.null', 'lt.2026-10-02T18:57:00.123Z']) {
+            const query = new URLSearchParams({ id: `eq.${ACCOUNT}`, sync_locked_at: filter, select: 'id,sync_locked_at' });
+            const rows = await rest(`gmail_accounts?${query}`, { method: 'PATCH', headers: { Prefer: 'return=representation' }, body: JSON.stringify({ sync_locked_at: lock }) });
+            assert(Array.isArray(rows));
+            assert(rows.length <= 1);
+            if (rows.length) return rows[0];
+          }
+          return null;
+        }
+        const results = await Promise.all([acquire(BASE_TIME), acquire('2026-10-02T19:00:00.124Z')]);
+        const owners = results.filter(Boolean);
+        assert.equal(owners.length, 1, 'Exactly one concurrent native CAS may acquire the lock');
+        assert.equal(owners[0].id, ACCOUNT);
+        assert.equal(Date.parse((await account()).sync_locked_at), Date.parse(owners[0].sync_locked_at));
       }
     });
     await t.test('multipage sync ingests all pages before the single fenced checkpoint', async () => {
@@ -261,6 +283,12 @@ if (process.argv[2] === '--prepare') {
       const q = new URLSearchParams(checkpointWrites(result)[0].query);
       assert.equal(q.get('last_history_id'), 'eq.100');
       assert.equal(Date.parse(q.get('sync_locked_at').slice(3)), Date.parse(BASE_TIME));
+      const acquisition = result.events.filter(e => e.path === '/rest/v1/gmail_accounts' && e.patch?.sync_locked_at);
+      assert.equal(acquisition.length, 1);
+      const lockQuery = new URLSearchParams(acquisition[0].query);
+      assert.equal(lockQuery.get('sync_locked_at'), 'is.null');
+      assert.equal(lockQuery.get('id'), `eq.${ACCOUNT}`);
+      assert(!lockQuery.has('or'));
       assert.equal((await account()).sync_locked_at, null);
     });
     await t.test('page-boundary cutoff persists old checkpoint and resumes exact continuation', async () => {
@@ -437,9 +465,18 @@ if (process.argv[2] === '--prepare') {
       await state(100, [], 0, blocked);
       await assertAck(blocked.id, false);
       assert.equal(Date.parse((await account()).sync_locked_at), Date.parse(BASE_TIME));
+      const attempts = result => result.events.filter(e => e.path === '/rest/v1/gmail_accounts' && e.patch?.sync_locked_at);
+      const blockedQueries = attempts(blocked).map(e => new URLSearchParams(e.query));
+      assert.equal(blockedQueries.length, 2);
+      assert.deepEqual(blockedQueries.map(q => q.get('sync_locked_at')), ['is.null', 'lt.2026-10-02T18:57:00.123Z']);
+      assert(blockedQueries.every(q => q.get('id') === `eq.${ACCOUNT}` && !q.has('or')));
       await reset('expired lock', { sync_locked_at: '2026-10-02T18:56:59.123Z' });
       const allowed = await run();
       await state(1000, ['a'], 1, allowed);
+      const allowedQueries = attempts(allowed).map(e => new URLSearchParams(e.query));
+      assert.equal(allowedQueries.length, 2);
+      assert.deepEqual(allowedQueries.map(q => q.get('sync_locked_at')), ['is.null', 'lt.2026-10-02T18:57:00.123Z']);
+      assert(allowedQueries.every(q => q.get('id') === `eq.${ACCOUNT}` && !q.has('or')));
       assert.equal((await account()).sync_locked_at, null);
     });
     await t.test('old worker cannot write checkpoint or release replacement timestamp lock', async () => {

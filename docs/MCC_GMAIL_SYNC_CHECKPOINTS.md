@@ -6,7 +6,7 @@ Status: VALIDATION CANDIDATE, PARTIALLY VERIFIED. Draft source review does not a
 
 Prevents the incremental worker from saving Gmail's mailbox-wide history ID while unprocessed history pages remain. Only `supabase/functions/workers/gmail-sync-worker.ts` changes at runtime. No schema, OAuth scope, dependency, AI model, spend-limit, AgentEdge guard, or production-setting changes.
 
-Baseline: canonical source `f913bd8c208cce1fd4c42a3f14a5141d89d55ea0` (containment PR13), deployed API v23 / workers v17. The worker's baseline SHA-256 is `acbe3f757abeb0bd0c7b42b20b90ebe8a8dcc767f60b30618ee75aa74a608cd3`; the candidate SHA-256 is `554e54298b1044a6db6abc4191d7f576b7c8959c4e99d683013721a5b7e03614`.
+Baseline: canonical source `f913bd8c208cce1fd4c42a3f14a5141d89d55ea0` (containment PR13), deployed API v23 / workers v17. The worker's baseline SHA-256 is `acbe3f757abeb0bd0c7b42b20b90ebe8a8dcc767f60b30618ee75aa74a608cd3`; the candidate SHA-256 is `e87596b75b5e1bc9c7bef47acd2bef36f0b347dae6f0eb68e79176e294388629`.
 
 ## Behavior
 
@@ -17,6 +17,7 @@ Baseline: canonical source `f913bd8c208cce1fd4c42a3f14a5141d89d55ea0` (containme
 - If a DB response is failed or uncertain, leave the job retryable and avoid advancing its checkpoint
 - Limit invalid-page-token recovery to one tokenless replay in a continuation chain, then use the existing bounded queue retry/dead-letter policy
 - Fence every worker account update against the acquired lock; checkpoint updates also compare the prior durable checkpoint
+- Acquire the lock with at most two atomic, account-scoped updates: `IS NULL`, then `< expiredBefore`. Continue only when the database returns the acquired row; errors do not fall through to another attempt
 - Keep null-baseline initialization retryable rather than disabling an account before its initial backfill can run
 - Preserve exact decimal cursor strings; reject already-rounded unsafe numeric reads instead of guessing
 - Suppress only the queue episode whose current inbound message matches the referenced provider message, so an old trash/spam event cannot hide a newer inbound episode on retry
@@ -32,11 +33,11 @@ Run on Node 24:
 node --experimental-vm-modules --test tests/gmail-sync-checkpoints.test.mjs
 ```
 
-43 sync fixtures pass. These include one explicit reproduction of the old deployed loss and one characterization of the pre-existing triage-outbox gap. The real worker, Gmail parsing/OAuth helpers, and auth/queue wrapper execute; HTTP, PostgREST/RPC, clock, and unavailable TypeScript interface runtime exports are isolated fixtures. No real network, OAuth credentials, database, model, or payment calls occur.
+48 sync fixtures pass. These include one explicit reproduction of the old deployed loss, one characterization of the pre-existing triage-outbox gap, and five atomic lock-acquisition regressions. The real worker, Gmail parsing/OAuth helpers, and auth/queue wrapper execute; HTTP, PostgREST/RPC, clock, and unavailable TypeScript interface runtime exports are isolated fixtures. No real network, OAuth credentials, database, model, or payment calls occur.
 
 Coverage includes page-boundary/mid-page cutoff, cutoff before a write, DB errors before and after commit, checkpoint errors, enqueue/ack errors, stale continuation/lock, initialization, duplicate/reordered/changed history, missing/deleted/current-draft messages, suppression errors, cursor expiry, revoked OAuth, exact bigint strings, malformed responses, and bounded invalid-token recovery.
 
-112 pre-existing AgentEdge containment fixtures also pass against the complete candidate bundles. All 51 unrelated deployed bundle files are byte-identical. The same 43 sync tests also pass from repository-shaped paths.
+112 pre-existing AgentEdge containment fixtures also pass against the candidate source. All 51 unrelated deployed bundle files are byte-identical. The 48 sync tests and 26 strict materializer tests pass from repository-shaped paths.
 
 Measured synthetic fixtures (not production estimates):
 
@@ -46,6 +47,12 @@ Measured synthetic fixtures (not production estimates):
 - Changed page invalidating its offset: 2 history GETs, 4 metadata GETs, 4 ingest RPCs, 3 unique message IDs, 1 final checkpoint write
 
 The largest continuation in these fixtures is 243 bytes; provider token length can vary. State field count does not grow with mailbox history. A changed page or uncertain write can repeat work, intentionally favoring completeness over guessed progress. There are no added model calls or claimed production savings.
+
+### Confirmed native lock-acquisition failure
+
+Diagnostic commit `9f4d16310b0246f9d69ac7a503c615fa1acc3fcc` ran on PostgreSQL 17.6 and PostgREST 14.3 in [CI run 37094455665](https://github.com/nicci-afk/comminicationstation/actions/runs/37094455665). For both null and expired locks, the old OR-filter PATCH returned HTTP 200 and `[]` while actually persisting the new lock. Both simple-filter alternatives returned the affected row correctly. Unexpired-lock contention and all seven service-role SQL controls behaved correctly. The exact candidate could not ingest because it received no acquired account row; this is consistent with [PostgREST issue #3707](https://github.com/PostgREST/postgrest/issues/3707).
+
+The fix replaces only the acquisition query with two simple-filter CAS attempts; there is no preceding read, schema change, RPC addition, response substitution, or ownership-fence change. The native suite preserves the observed legacy OR behavior as a strict PostgREST-14.3 characterization, requires simple-filter results to match persisted SQL, exercises two concurrent native CAS contenders for null and expired locks, and retains all worker checkpoint/ingest/queue assertions. Native validation of the updated exact candidate remains required before release.
 
 ## Known limits and release gates
 
