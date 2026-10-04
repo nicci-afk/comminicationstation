@@ -54,3 +54,9 @@ The final unknown-outcome audit reproduced an episode-change bypass in the origi
 ## Service-role default-ACL correction
 
 A local regression with inherited ALL table defaults reproduced an unintended service-role DELETE grant. The proposal now revokes ALL from service_role on each new table before granting only SELECT, INSERT and UPDATE. All new IDs use UUID defaults, so no sequence grant is required. Tests check effective SELECT/INSERT/UPDATE, deny DELETE/TRUNCATE/REFERENCES/TRIGGER/MAINTAIN and grant options, attempt DELETE and TRUNCATE, and retain the complete intended RPC flows. Native variants save the observed table-ACL matrix. This does not constrain the database owner/superuser or widen any browser permission; the exact corrected head needs its own CI receipt.
+
+## Standalone frontend packaging regression
+
+Vercel uploads only committed `apps/web` files. The frontend therefore imports the byte-identical pure checker at `apps/web/src/lib/replyEvidence.ts`; the server source at `supabase/functions/api/_shared/reply-evidence.ts` remains canonical. An exact-byte parity test prevents either copy from drifting. This pure module contains no provider, secret, database or model integration.
+
+The reply CI now reconstructs the entire committed frontend subtree in a temporary directory outside the repository and builds it without any backend or parent source. This reproduces the actual deployment boundary; a repository-root build alone does not prove standalone packaging. The pre-fix regression reproduced the missing shared-module error. Native browser/API/ACL tests remain required.
