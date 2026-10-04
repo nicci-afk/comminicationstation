@@ -11,8 +11,9 @@ await build({ stdin: { contents: `
  import {QueryClient,QueryClientProvider} from './apps/web/node_modules/@tanstack/react-query/build/modern/index.js';
  import {BrowserRouter,Routes,Route,Link} from './apps/web/node_modules/react-router-dom/dist/index.mjs';
  import Today from './apps/web/src/pages/Today.tsx';
+ import Queue from './apps/web/src/pages/Queue.tsx';
  const client=new QueryClient({defaultOptions:{queries:{retry:false},mutations:{retry:false}}});
- createRoot(document.getElementById('root')).render(<QueryClientProvider client={client}><BrowserRouter><Routes><Route path='/today' element={<Today/>}/><Route path='/item/:id' element={<div><h1>Fixture detail</h1><Link to='/today'>Back to Today</Link></div>}/></Routes></BrowserRouter></QueryClientProvider>);
+ createRoot(document.getElementById('root')).render(<QueryClientProvider client={client}><BrowserRouter><Routes><Route path='/today' element={<Today/>}/><Route path='/queue' element={<Queue/>}/><Route path='/item/:id' element={<div><h1>Fixture detail</h1><Link to='/today'>Back to Today</Link></div>}/></Routes></BrowserRouter></QueryClientProvider>);
  `, resolveDir: process.cwd(), loader: 'tsx' }, outfile: `${dir}/fixture.js`, bundle: true, platform: 'browser', jsx: 'automatic', define: { 'process.env.NODE_ENV': '"production"' }, plugins: [{ name: 'local-config', setup(b) {
    b.onResolve({ filter: /^\.\/config$/ }, () => ({ path: 'local-config', namespace: 'fixture' }));
    b.onLoad({ filter: /.*/, namespace: 'fixture' }, () => ({ contents: 'export const SUPABASE_URL="http://127.0.0.1:4177"; export const SUPABASE_ANON_KEY="local-fixture"; export const API_BASE=SUPABASE_URL;' }));
@@ -36,10 +37,12 @@ await page.route('**/*', async route => {
    writes++; if (saveFailure) return fulfill({ message: 'Fixture save failure' }, 400);
    const row = rows.find(r => `eq.${r.id}` === url.searchParams.get('id')); const patch = req.postDataJSON();
    if (!row || !['state', 'updated_at', 'snoozed_until', 'follow_up_at', 'last_inbound_message_id', 'message_count'].every(k => url.searchParams.get(k) === (row[k] === null ? 'is.null' : `eq.${row[k]}`))) return fulfill({ message: 'Conflict' }, 406);
-   Object.assign(row, patch, { updated_at: `2026-10-02T12:00:${String(++version).padStart(2, '0')}Z` }); if (row.state === 'responded' && !row.follow_up_at) row.follow_up_at = '2026-10-06T12:00:00Z'; return fulfill(row);
+   Object.assign(row, patch, { updated_at: `2026-10-02T12:00:${String(++version).padStart(2, '0')}Z` }); if (row.state === 'responded' && ['needs_reply','urgent','scheduling'].includes(row.category)) { row.state = 'awaiting_reply'; row.follow_up_at ??= '2026-10-06T12:00:00Z'; } return fulfill(row);
   }
   if (readFailure) return fulfill({ message: 'Fixture queue failure' }, 400);
-  const active = rows.filter(r => r.state === 'needs_attention'); const offset = Number(url.searchParams.get('offset') || 0); const list = active.slice(offset, offset + Number(url.searchParams.get('limit')));
+  const stateFilter = url.searchParams.get('state');
+  const states = stateFilter.startsWith('eq.') ? [stateFilter.slice(3)] : stateFilter.slice(4, -1).split(',');
+  const active = rows.filter(r => states.includes(r.state)); const offset = Number(url.searchParams.get('offset') || 0); const list = active.slice(offset, offset + Number(url.searchParams.get('limit')));
   if (offset > 0 && offset >= active.length) return fulfill({ code: 'PGRST103', message: 'Requested range not satisfiable' }, 416, { 'content-range': `*/${active.length}` });
   return fulfill(list, 200, { 'content-range': `${offset}-${offset + list.length - 1}/${active.length}` });
  }
@@ -58,5 +61,36 @@ try {
  await page.getByRole('button', { name: 'Next page', exact: true }).click(); await page.getByText('Showing 201–201 of 201 items needing attention').waitFor();
  await page.getByRole('button', { name: 'Open & reply' }).click(); await page.getByRole('heading', { name: 'Fixture detail' }).waitFor(); await page.goBack(); await page.getByRole('heading', { name: 'Today: 201 need attention' }).waitFor();
  await page.setViewportSize({ width: 1280, height: 900 }); await page.screenshot({ path: 'test-results/phase3b-today-desktop-ready.png' }); assert.deepEqual(errors, []);
- console.log('PASS: isolated Chromium desktop/mobile, 201-row pagination, failed write, double click, Undo, stale refresh, Back navigation, no horizontal overflow or uncaught page errors');
+ // Canonical reply normalization keeps the request open and reachable by its stored date.
+ rows = [{ ...rows[0], state: 'needs_attention', category: 'needs_reply', follow_up_at: '2030-01-02T15:30:00Z' }];
+ await page.goto('http://127.0.0.1:4177/today'); await page.getByRole('heading', { name: 'Today: 1 needs attention' }).waitFor();
+ await page.getByRole('button', { name: 'Responded', exact: true }).click(); await page.getByText('1 handled this visit').waitFor();
+ assert.equal(rows[0].state, 'awaiting_reply'); assert.equal(rows[0].follow_up_at, '2030-01-02T15:30:00Z');
+ await page.getByText(/follow-up remains open/).waitFor(); await page.getByRole('link', { name: 'View scheduled follow-ups' }).click();
+ await page.getByText('Showing 1–1 of 1').waitFor(); await page.getByText(/Follow-up scheduled: 2030-01-02 15:30 UTC/).waitFor();
+ assert.equal(await page.getByRole('button', { name: 'Done', exact: true }).count(), 0);
+ await page.screenshot({ path: 'test-results/followup-desktop-list.png', fullPage: true });
+ // Reopening Today, canceling a form and Back cannot submit a pending date.
+ rows[0] = { ...rows[0], state: 'needs_attention', follow_up_at: null };
+ await page.goto('http://127.0.0.1:4177/today'); await page.getByRole('heading', { name: 'Today: 1 needs attention' }).waitFor();
+ await page.setViewportSize({ width: 390, height: 844 });
+ await page.getByRole('button', { name: 'Set follow-up date' }).click();
+ assert.equal(await page.getByLabel('Follow-up date and time (UTC)').inputValue(), '');
+ await page.getByLabel('Follow-up date and time (UTC)').fill('2030-02-03T16:45');
+ await page.screenshot({ path: 'test-results/followup-mobile-form.png', fullPage: true });
+ assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), 'mobile follow-up form horizontal overflow');
+ const beforeCancel = writes; await page.getByRole('button', { name: 'Cancel follow-up' }).click(); assert.equal(writes, beforeCancel);
+ await page.getByRole('button', { name: 'Set follow-up date' }).click(); await page.getByLabel('Follow-up date and time (UTC)').fill('2030-02-03T16:45');
+ await page.getByRole('button', { name: 'Save follow-up' }).dblclick(); await page.getByText('1 handled this visit').waitFor();
+ assert.equal(writes, beforeCancel + 1); assert.equal(rows[0].state, 'awaiting_reply'); assert.equal(rows[0].follow_up_at, '2030-02-03T16:45:00.000Z');
+ await page.getByRole('button', { name: 'Undo last change' }).click(); await page.getByText('Last change undone.').waitFor(); assert.equal(rows[0].follow_up_at, null);
+ await page.getByRole('button', { name: 'Set follow-up date' }).click(); await page.getByLabel('Follow-up date and time (UTC)').fill('2030-02-03T16:45');
+ rows[0] = { ...rows[0], last_inbound_message_id: 'new-unseen-message', message_count: 2 };
+ await page.getByRole('button', { name: 'Save follow-up' }).click(); await page.getByText(/Change unconfirmed/).waitFor();
+ assert.equal(rows[0].state, 'needs_attention'); assert.equal(rows[0].follow_up_at, null);
+ await page.getByRole('button', { name: 'Cancel follow-up' }).click(); await page.getByRole('button', { name: 'Open & reply' }).click();
+ await page.getByRole('heading', { name: 'Fixture detail' }).waitFor(); await page.goBack(); await page.getByRole('heading', { name: 'Today: 1 needs attention' }).waitFor();
+ assert.equal(await page.getByLabel('Follow-up date and time (UTC)').count(), 0);
+ assert.deepEqual(errors, []);
+ console.log('PASS: isolated Chromium desktop/mobile, 201-row pagination, failed write, double click, Undo, stale refresh, Back navigation; normalized reply stays open; explicit UTC follow-up, cancel, duplicate save and unseen-inbound conflict; no overflow or uncaught errors');
 } finally { await browser.close(); await new Promise(r => server.close(r)); }
