@@ -140,6 +140,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          ref: e4159499072b7e3ee0e73e69d6eb9776dbe76f72
       - uses: actions/setup-node@v4
         with:
           node-version: "24.14.1"
@@ -170,3 +171,40 @@ jobs:
           path: |
             test-results/mcc-generation-*/
             ${{ runner.temp }}/mcc-generation-bundles/materialization.json
+
+
+  triage-cost:
+    name: Triage exact budget reservations and native runtime
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24.14.1"
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: "v2.9.0"
+      - uses: supabase/setup-cli@v1
+        with:
+          version: "2.75.0"
+      - run: npm ci
+      - name: Portable exact-source budget and route regressions
+        run: node --experimental-vm-modules --test tests/mcc_triage_cost_sql.test.mjs tests/mcc_triage_cost_runtime.test.mjs tests/mcc_cost_materializer.test.mjs
+      - name: Install exact SDK in disposable test-only directory
+        run: npm install --prefix "$RUNNER_TEMP/mcc-cost-sdk" --ignore-scripts --no-audit --no-fund @anthropic-ai/sdk@0.131.0
+      - name: Real SDK serialization and no-retry proof with intercepted HTTP
+        run: MCC_COST_SDK_ROOT="$RUNNER_TEMP/mcc-cost-sdk/node_modules/@anthropic-ai/sdk" node --experimental-vm-modules --test tests/mcc_triage_cost_sdk.test.mjs
+      - name: Materialize exact API24 and workers18 plus bounded triage delta
+        run: node --experimental-vm-modules scripts/materialize_mcc_cost_release.mjs "$RUNNER_TEMP/mcc-cost-bundles"
+      - name: Native budget lock races, effective ACLs, PostgREST and exact Edge
+        run: bash scripts/validate_mcc_cost_native.sh "$RUNNER_TEMP/mcc-cost-bundles"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: mcc-triage-cost-native-evidence
+          path: |
+            test-results/mcc-cost-native/
+            ${{ runner.temp }}/mcc-cost-bundles/materialization.json
