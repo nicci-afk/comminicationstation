@@ -50,6 +50,7 @@ function stripHtml(html: string): string {
 export default async function handler(req: Request): Promise<Response> {
   const opt = handleOptions(req);
   if (opt) return opt;
+  if (req.method !== "POST") return json({ error: "POST required" }, 405);
   const db = serviceClient();
   try {
     const { userId } = await requireUser(req, db);
@@ -68,11 +69,13 @@ export default async function handler(req: Request): Promise<Response> {
       .from("gmail_accounts")
       .select("*")
       .eq("id", msg.gmail_account_id)
-      .single();
+      .eq("user_id", userId)
+      .maybeSingle();
+    if (!account) throw new HttpError(404, "message account not found");
     const token = await accessTokenForAccount(db, account as GmailAccountRow);
     const full = await gmailJson(
       token,
-      `/users/me/messages/${msg.provider_message_id}?format=full`,
+      `/users/me/messages/${encodeURIComponent(msg.provider_message_id)}?format=full`,
     );
     const payload = full.payload as Part | undefined;
     let text = extractText(payload, "text/plain");
@@ -82,7 +85,8 @@ export default async function handler(req: Request): Promise<Response> {
     }
     text = (text ?? "").slice(0, 50_000);
 
-    await db.from("messages").update({ body_text: text }).eq("id", msg.id);
+    const { error: saveError } = await db.from("messages").update({ body_text: text }).eq("id", msg.id).eq("user_id", userId);
+    if (saveError) throw new HttpError(409, "source body could not be cached; refresh before reviewing");
     return json({ body: text });
   } catch (e) {
     const status = e instanceof HttpError ? e.status : 500;

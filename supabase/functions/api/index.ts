@@ -13,6 +13,7 @@ import gmailGetBody from "./gmail-get-body.ts";
 import gmailSend from "./gmail-send.ts";
 import pipelineStart from "./pipeline-start.ts";
 import draftReply from "./draft-reply.ts";
+import replyReview from "./reply-review.ts";
 import interactionUpdate from "./interaction-update.ts";
 import twilioInbound from "./twilio-inbound.ts";
 import twilioSend from "./twilio-send.ts";
@@ -43,6 +44,7 @@ const routes: Record<string, Handler> = {
   "gmail-send": gmailSend,
   "pipeline-start": pipelineStart,
   "draft-reply": draftReply,
+  "reply-review": replyReview,
   "interaction-update": interactionUpdate,
   "twilio-inbound": twilioInbound,
   "twilio-send": twilioSend,

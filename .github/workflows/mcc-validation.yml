@@ -91,13 +91,14 @@ jobs:
           path: test-results/phase3b-*.png
 
   agentedge-safety:
-    name: Gmail checkpoint and containment runtime preflight
+    name: Historical checkpoint and containment runtime preflight
     runs-on: ubuntu-latest
     timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          ref: aaa2735a64732e0976c5abfa7f25f17b5599de95
       - uses: actions/setup-node@v4
         with:
           node-version: "24.14.1"

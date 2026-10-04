@@ -1,105 +1,57 @@
 // Send an SMS/WhatsApp reply from inside the app (the number lives in the
 // cloud, so this IS the reply surface for these channels). Marks the queue
 // item responded synchronously via the ingest RPC. WhatsApp 24h-window aware.
-
-import {
-  getUserSecret,
-  handleOptions,
-  HttpError,
-  json,
-  requireUser,
-  serviceClient,
-} from "./_shared/util.ts";
-
+import { getUserSecret, handleOptions, HttpError, json, requireUser, serviceClient, } from "./_shared/util.ts";
+import { beginReplyDispatch, finishReplyDispatch } from "./_shared/reply-review.ts";
 export default async function handler(req: Request): Promise<Response> {
-  const opt = handleOptions(req);
-  if (opt) return opt;
-  const db = serviceClient();
-  try {
-    const { userId } = await requireUser(req, db);
-    const body = await req.json();
-    const threadId = body.thread_id as string;
-    const text = String(body.body ?? "").trim();
-    if (!text) throw new HttpError(400, "empty message");
-    if (body.approval !== "USER_CONFIRMED") {
-      throw new HttpError(403, "explicit user approval is required before sending");
+    const opt = handleOptions(req);
+    if (opt)
+        return opt;
+    if (req.method !== "POST")
+        return json({ error: "POST required" }, 405);
+    const db = serviceClient();
+    let userId = "", dispatchId = "", providerStarted = false, sentId = "";
+    try {
+        ({ userId } = await requireUser(req, db));
+        const body = await req.json();
+        if (body?.channel !== "sms" && body?.channel !== "whatsapp")
+            throw new HttpError(400, "SMS or WhatsApp channel required");
+        const dispatch = await beginReplyDispatch(db, userId, body, body.channel);
+        dispatchId = String(dispatch.dispatch_id);
+        if (dispatch.existing)
+            return json({ ok: false, dispatch_id: dispatchId, status: dispatch.status, existing: true });
+        const payload = dispatch.payload!;
+        const transport = payload.transport!;
+        const { data: num, error } = await db.from("twilio_numbers").select("id,user_id,phone_e164,status").eq("id", payload.fromAccountId).eq("user_id", userId).maybeSingle();
+        if (error || !num || num.status !== "active" || num.phone_e164 !== transport.from)
+            throw new HttpError(409, "approved sending number changed");
+        if (payload.channel === "whatsapp" && (!transport.lastInboundAt || Date.parse(transport.lastInboundAt) <= Date.now() - 24 * 3600 * 1000))
+            throw new HttpError(409, "WhatsApp 24-hour window is closed");
+        const sid = await getUserSecret(db, userId, "twilio_account_sid"), token = await getUserSecret(db, userId, "twilio_auth_token");
+        if (!sid || !token)
+            throw new HttpError(400, "Twilio credentials are unavailable");
+        const prefix = payload.channel === "whatsapp" ? "whatsapp:" : "";
+        providerStarted = true;
+        const res = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${sid}/Messages.json`, { method: "POST", headers: { Authorization: "Basic " + btoa(`${sid}:${token}`), "Content-Type": "application/x-www-form-urlencoded" }, body: new URLSearchParams({ From: prefix + transport.from, To: prefix + transport.to, Body: payload.text }) });
+        if (!res.ok)
+            throw new Error("provider send request failed");
+        const sent = await res.json();
+        if (typeof sent.sid !== "string" || !sent.sid)
+            throw new Error("provider response did not identify the sent message");
+        sentId = sent.sid;
+        await finishReplyDispatch(db, userId, dispatchId, "SENT", sentId, true);
+        let ingested = false;
+        try {
+            const { error: ingestError } = await db.rpc("ingest_twilio_message", { p_twilio_number_id: num.id, p: { provider_message_id: sentId, direction: "outbound", channel: payload.channel, counterparty_e164: transport.to, body: payload.text, sent_at: new Date().toISOString() } });
+            ingested = !ingestError;
+        }
+        catch { }
+        const recorded = await finishReplyDispatch(db, userId, dispatchId, "SENT", sentId, !ingested);
+        return json({ ok: true, status: "SENT", dispatch_id: dispatchId, sid: sentId, audit_pending: !recorded, ingestion_pending: !ingested });
     }
-
-    const { data: thread } = await db
-      .from("threads")
-      .select("id,user_id,channel,twilio_number_id,provider_thread_id")
-      .eq("id", threadId)
-      .maybeSingle();
-    if (!thread || thread.user_id !== userId) throw new HttpError(404, "thread not found");
-    if (!thread.twilio_number_id) throw new HttpError(400, "not an SMS/WhatsApp thread");
-
-    const { data: num } = await db
-      .from("twilio_numbers")
-      .select("id,phone_e164,status")
-      .eq("id", thread.twilio_number_id)
-      .single();
-    if (num!.status !== "active") throw new HttpError(400, "number is not active");
-
-    const counterparty = (thread.provider_thread_id as string).split(":").slice(1).join(":");
-
-    if (thread.channel === "whatsapp") {
-      // Free-form sends only inside the 24h customer-service window.
-      const { data: lastInbound } = await db
-        .from("messages")
-        .select("sent_at")
-        .eq("thread_id", threadId)
-        .eq("direction", "inbound")
-        .order("sent_at", { ascending: false })
-        .limit(1)
-        .maybeSingle();
-      const cutoff = Date.now() - 24 * 3600 * 1000;
-      if (!lastInbound || new Date(lastInbound.sent_at).getTime() < cutoff) {
-        throw new HttpError(400,
-          "WhatsApp 24-hour window is closed — free-form replies are only allowed within 24h of their last message; use an approved template (coming with WhatsApp go-live)");
-      }
+    catch (e) {
+        if (dispatchId && !sentId)
+            await finishReplyDispatch(db, userId, dispatchId, providerStarted ? "UNKNOWN" : "FAILED");
+        return json({ error: providerStarted ? "Delivery outcome is unknown. Do not resend; check the dispatch status." : (e as Error).message, ...(dispatchId ? { dispatch_id: dispatchId, status: sentId ? "SENT" : providerStarted ? "UNKNOWN" : "FAILED" } : {}) }, dispatchId ? 200 : e instanceof HttpError ? e.status : 502);
     }
-
-    const sid = await getUserSecret(db, userId, "twilio_account_sid");
-    const token = await getUserSecret(db, userId, "twilio_auth_token");
-    if (!sid || !token) throw new HttpError(400, "add your Twilio credentials in Settings first");
-
-    const prefix = thread.channel === "whatsapp" ? "whatsapp:" : "";
-    const res = await fetch(
-      `https://api.twilio.com/2010-04-01/Accounts/${sid}/Messages.json`,
-      {
-        method: "POST",
-        headers: {
-          Authorization: "Basic " + btoa(`${sid}:${token}`),
-          "Content-Type": "application/x-www-form-urlencoded",
-        },
-        body: new URLSearchParams({
-          From: prefix + num!.phone_e164,
-          To: prefix + counterparty,
-          Body: text,
-        }),
-      },
-    );
-    if (!res.ok) {
-      throw new HttpError(502, `Twilio send failed: ${(await res.text()).slice(0, 300)}`);
-    }
-    const sent = await res.json();
-
-    const { error } = await db.rpc("ingest_twilio_message", {
-      p_twilio_number_id: num!.id,
-      p: {
-        provider_message_id: sent.sid,
-        direction: "outbound",
-        channel: thread.channel,
-        counterparty_e164: counterparty,
-        body: text,
-        sent_at: new Date().toISOString(),
-      },
-    });
-    if (error) throw new Error(error.message);
-
-    return json({ ok: true, sid: sent.sid });
-  } catch (e) {
-    const status = e instanceof HttpError ? e.status : 500;
-    return json({ error: (e as Error).message }, status);
-  }
 }

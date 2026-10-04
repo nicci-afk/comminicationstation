@@ -1,0 +1,76 @@
+name: MCC reply evidence validation
+on:
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: mcc-reply-validation-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  reply-local:
+    name: Reply deterministic and UI suite
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24.14.1"
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            apps/web/package-lock.json
+      - run: npm ci
+      - run: npm ci --prefix apps/web
+      - run: npm run test:reply-evidence
+      - run: node --experimental-vm-modules --test tests/reply-materializer.test.mjs
+  reply-native:
+    name: Reply native and browser (${{ matrix.variant }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        variant: [main, cutover]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Check out the exact reviewed PR18 compatibility source
+        if: matrix.variant == 'cutover'
+        uses: actions/checkout@v4
+        with:
+          ref: 019098c85561c234dc3c49f0e16f0fb42c3b7ec6
+          path: .reply-cutover
+          persist-credentials: false
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24.14.1"
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            apps/web/package-lock.json
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: "v2.9.0"
+      - uses: supabase/setup-cli@v1
+        with:
+          version: "2.75.0"
+      - run: npm ci
+      - run: npm ci --prefix apps/web
+      - run: npx playwright install --with-deps chromium
+      - run: npm run build --prefix apps/web
+      - name: Native database, Auth, PostgREST, Edge and Chromium proof
+        run: bash scripts/validate_reply_native.sh '${{ matrix.variant }}' .reply-cutover
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: reply-native-${{ matrix.variant }}
+          path: test-results/reply-native-${{ matrix.variant }}
+          retention-days: 7

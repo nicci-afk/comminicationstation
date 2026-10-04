@@ -1,0 +1,37 @@
+import fs from 'node:fs';import assert from 'node:assert/strict';import {spawn,spawnSync} from 'node:child_process';import {randomUUID} from 'node:crypto';
+export const container=process.env.REPLY_DB_CONTAINER;
+assert.match(container??'',/^supabase_db_mcc-reply-[0-9-]+$/,'disposable reply database required');
+const status=JSON.parse(fs.readFileSync(process.env.REPLY_STATUS,'utf8'));
+export const url=status.API_URL??status.api_url,key=status.SERVICE_ROLE_KEY??status.service_role_key,anon=status.ANON_KEY??status.anon_key;
+assert(new URL(url).protocol==='http:'&&['127.0.0.1','localhost'].includes(new URL(url).hostname));
+export const quote=s=>"'"+String(s).replaceAll("'","''")+"'";
+export function sql(s){const r=spawnSync('docker',['exec','-i',container,'psql','-XAtq','-v','ON_ERROR_STOP=1','-U','postgres','-d','postgres'],{input:"set statement_timeout='15s';"+s,encoding:'utf8',timeout:20_000});assert.equal(r.status,0,r.stderr);return r.stdout.trim();}
+export async function rest(p,{method='POST',body,token=key,headers={}}={}){const r=await fetch(url+p,{method,headers:{apikey:anon,authorization:'Bearer '+token,'content-type':'application/json',...headers},body:body===undefined?undefined:JSON.stringify(body),redirect:'error',signal:AbortSignal.timeout(20_000)});let data;const text=await r.text();try{data=JSON.parse(text);}catch{data=text;}return {status:r.status,data};}
+export const edge=(route,body,token,mode='ok',disabled=false)=>rest('/functions/v1/'+(disabled?'reply-disabled':'reply-runtime')+'/'+route,{body,token,headers:{'x-fixture-mode':mode,'x-mcc-caller':'forged-client-marker'}});
+export async function review(body,token){const r=await edge('reply-review',body,token);assert.equal(r.status,200,JSON.stringify(r.data));return r.data;}
+export const rpc=(actor,op,input)=>rest('/rest/v1/rpc/mcc_reply_command',{body:{p_actor:actor,p_operation:op,p_input:input}});
+export async function boot(){for(const name of ['reply-runtime','reply-disabled']){let ready=false;for(let n=0;n<120;n++){try{const r=await fetch(url+'/functions/v1/'+name+'/__boot',{signal:AbortSignal.timeout(5000)});if(r.status===404&&r.headers.has('x-mcc-reply-runtime')){ready=true;break;}}catch{}await new Promise(r=>setTimeout(r,1000));}assert(ready,'Edge fixture booted');}}
+export async function createUser(email){const password='isolated-fixture-password-42!';let r=await rest('/auth/v1/admin/users',{body:{email,password,email_confirm:true}});assert.equal(r.status,200,JSON.stringify(r.data));const id=r.data.id;r=await rest('/auth/v1/token?grant_type=password',{token:anon,body:{email,password}});assert.equal(r.status,200,JSON.stringify(r.data));return {id,token:r.data.access_token};}
+export function seed(user,channel='email',body='The price is $1250.'){
+ const i={user,channel,business:randomUUID(),contact:randomUUID(),account:randomUUID(),thread:randomUUID(),item:randomUUID(),message:randomUUID(),draft:randomUUID()};
+ const suffix=String(Math.floor(Math.random()*1e9)).padStart(9,'0');i.sender=channel==='email'?`client-${suffix}@example.invalid`:'+15'+suffix;i.from=channel==='email'?`owner-${suffix}@example.invalid`:'+16'+suffix;i.providerThread=channel==='email'?'thread-'+i.thread:channel+':'+i.sender;
+ sql(`insert into businesses(id,user_id,name) values('${i.business}','${user}','Synthetic ${i.business}');insert into contacts(id,user_id,display_name,kind) values('${i.contact}','${user}','Synthetic client','human');
+ ${channel==='email'?`insert into gmail_accounts(id,user_id,email_address,status,has_send_scope,refresh_token_secret_id) values('${i.account}','${user}','${i.from}','active',true,'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb');`:`insert into twilio_numbers(id,user_id,phone_e164,status) values('${i.account}','${user}','${i.from}','active');`}
+ insert into contact_channels(user_id,contact_id,channel_type,raw_value,canonical_value) values('${user}','${i.contact}','${channel==='email'?'email':'phone'}','${i.sender}','${i.sender}');
+ insert into threads(id,user_id,channel,gmail_account_id,twilio_number_id,provider_thread_id) values('${i.thread}','${user}','${channel}',${channel==='email'?quote(i.account):'null'},${channel==='email'?'null':quote(i.account)},'${i.providerThread}');
+ insert into messages(id,user_id,thread_id,contact_id,direction,channel,provider,gmail_account_id,twilio_number_id,provider_message_id,from_identifier,to_identifiers,body_text,sent_at,subject,rfc822_message_id) values('${i.message}','${user}','${i.thread}','${i.contact}','inbound','${channel}','${channel==='email'?'gmail':'twilio'}',${channel==='email'?quote(i.account):'null'},${channel==='email'?'null':quote(i.account)},'source-${i.message}','${i.sender}',array['${i.from}'],${quote(body)},clock_timestamp()-interval '1 hour','Quote','<${i.message}@example.invalid>');
+ insert into queue_items(id,user_id,thread_id,contact_id,business_id,channel,sender_identifier,title,last_inbound_message_id) values('${i.item}','${user}','${i.thread}','${i.contact}','${i.business}','${channel}','${i.sender}','Quote','${i.message}');`);return i;
+}
+export async function save(i,token,text='Thank you.',revision=0,claims=[]){return review({operation:'SAVE',draft_id:i.draft,queue_item_id:i.item,revision,text,claims},token);}
+export async function approve(i,token){const c=await review({operation:'CHECK',draft_id:i.draft},token);assert.equal(c.check.status,'SOURCE_SUPPORTED_REQUIRES_REVIEW',JSON.stringify(c));return review({operation:'APPROVE',check_id:c.check_id,review_key:c.check.reviewKey,snapshot_key:c.check.snapshotKey,coverage_reviewed:true},token);}
+export class Session{
+ constructor(name){this.p=spawn('docker',['exec','-i',container,'psql','-XAtq','-v','ON_ERROR_STOP=1','-U','postgres','-d','postgres']);this.out='';this.err='';this.n=0;this.pending=null;this.closed=false;this.p.stdout.on('data',b=>{this.out+=b;this.flush();});this.p.stderr.on('data',b=>this.err+=b);this.p.on('exit',code=>{this.closed=true;if(this.pending){this.pending.reject(Error(this.err||`psql exit ${code}`));this.pending=null;}});this.name=name;}
+ flush(){const p=this.pending;if(!p)return;const at=this.out.indexOf(p.mark+'\n');if(at<0)return;const data=this.out.slice(0,at).trim();this.out=this.out.slice(at+p.mark.length+1);this.pending=null;p.resolve(data);}
+ run(s){assert(!this.pending&&!this.closed);return new Promise((resolve,reject)=>{const mark='__reply_done_'+(++this.n);this.pending={mark,resolve,reject};this.p.stdin.write(s+'\n\\echo '+mark+'\n');});}
+ async init(){this.pid=Number(await this.run(`set statement_timeout='15s';set lock_timeout='12s';set application_name=${quote(this.name)};select pg_backend_pid();`));return this;}
+ close(){if(!this.closed)this.p.stdin.end('rollback;\n\\q\n');}
+}
+export const locks=[];
+export async function blocked(waiter,holder){const end=Date.now()+7000;while(Date.now()<end){const rows=JSON.parse(sql(`select coalesce(json_agg(t),'[]') from (select pid,wait_event_type,wait_event,pg_blocking_pids(pid) blockers from pg_stat_activity where pid=${waiter.pid}) t;`));const r=rows[0];if(r?.wait_event_type==='Lock'&&r.blockers.includes(holder.pid)){locks.push(r);return;}await new Promise(r=>setTimeout(r,40));}throw Error('No observed lock wait');}
+export const commandSQL=(actor,op,input)=>`select public.mcc_reply_command('${actor}',${quote(op)},${quote(JSON.stringify(input))}::jsonb);`;
+export const apiContext=`set local role service_role;set local request.headers='{"x-mcc-caller":"api-gmail-fence-v1"}';`;
