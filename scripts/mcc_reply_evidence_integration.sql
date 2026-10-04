@@ -59,7 +59,9 @@ create index reply_dispatches_sent_provider on public.reply_dispatches(user_id,p
 do $$ declare t text; begin
  foreach t in array array['reply_context_state','reply_fact_evidence','reply_checks','reply_approvals','reply_dispatches'] loop
   execute format('alter table public.%I enable row level security',t);
-  execute format('revoke all on public.%I from public,anon,authenticated',t);
+  -- Supabase may inherit ALL table rights for service_role at creation time.
+  -- Clear those defaults before granting only the invoker RPC's required rights.
+  execute format('revoke all on public.%I from public,anon,authenticated,service_role',t);
   execute format('grant select,insert,update on public.%I to service_role',t);
  end loop;
 end $$;

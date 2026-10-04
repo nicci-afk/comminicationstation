@@ -16,6 +16,18 @@ await test('native reply trust boundary, dispatch, and interleavings',async t=>{
   }
   for(const role of ['anon','authenticated'])for(const table of tables)assert.equal(sql(`select has_table_privilege('${role}','public.${table}','select,insert,update,delete');`),'f');
  });
+ await t.test('effective service_role table rights are exactly SELECT/INSERT/UPDATE, including inherited defaults',async()=>{
+  const observed=[];
+  for(const table of ['reply_context_state','reply_fact_evidence','reply_checks','reply_approvals','reply_dispatches']){
+   for(const privilege of ['SELECT','INSERT','UPDATE','DELETE','TRUNCATE','REFERENCES','TRIGGER','MAINTAIN']){
+    const allowed=sql(`select has_table_privilege('service_role','public.${table}','${privilege}');`)==='t';observed.push({table,privilege,allowed});assert.equal(allowed,['SELECT','INSERT','UPDATE'].includes(privilege),table+' '+privilege);
+   }
+   for(const privilege of ['SELECT','INSERT','UPDATE'])assert.equal(sql(`select has_table_privilege('service_role','public.${table}','${privilege} WITH GRANT OPTION');`),'f');
+   const denied=await rest('/rest/v1/'+table+'?id=eq.00000000-0000-4000-8000-000000000000',{method:'DELETE'});assert.equal(denied.status,403,table+':'+JSON.stringify(denied));
+   assert.throws(()=>sql(`begin;set local role service_role;truncate public.${table};rollback;`),/permission denied/);
+  }
+  fs.writeFileSync(path.join(evidence,'effective-service-table-acls.json'),JSON.stringify(observed,null,2)+'\n');
+ });
  await t.test('real Auth identity wins over actor fields; manual sentinel and foreign drafts cannot send',async()=>{
   const i=seed(owner.id);await save(i,owner.token);
   let r=await edge('reply-review',{operation:'SNAPSHOT',draft_id:i.draft,user_id:owner.id},other.token);assert.equal(r.status,409);

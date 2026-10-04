@@ -28,4 +28,13 @@ test('a new queue episode on the same thread cannot bypass an unknown dispatch',
  const state=await f.command('SAVE',{...save,queue_item_id:item,draft_id:draft}),now=new Date().toISOString(),result=await checkReply({...state,evidenceRead:{...state.evidenceRead,readAt:now}},now);const c=await f.command('CHECK',{draft_id:draft,revision:1,state,result});
  await assert.rejects(f.command('APPROVE',{check_id:c.check_id,snapshot_key:c.check.snapshotKey,review_key:c.check.reviewKey,coverage_reviewed:true}),/pending or outcome unresolved/);
 }finally{await f.db.close();}});
+test('inherited service defaults are cleared while the intended reply RPC flow remains usable',async()=>{const f=await fixture({serviceDefaults:true});try{
+ for(const table of ['reply_context_state','reply_fact_evidence','reply_checks','reply_approvals','reply_dispatches']){
+  for(const privilege of ['SELECT','INSERT','UPDATE'])assert.equal((await f.db.query('select has_table_privilege($1,$2,$3) ok',['service_role','public.'+table,privilege])).rows[0].ok,true,table+' '+privilege);
+  for(const privilege of ['DELETE','TRUNCATE','REFERENCES','TRIGGER','MAINTAIN'])assert.equal((await f.db.query('select has_table_privilege($1,$2,$3) ok',['service_role','public.'+table,privilege])).rows[0].ok,false,table+' '+privilege);
+  for(const privilege of ['SELECT','INSERT','UPDATE'])assert.equal((await f.db.query('select has_table_privilege($1,$2,$3) ok',['service_role','public.'+table,privilege+' WITH GRANT OPTION'])).rows[0].ok,false);
+  await assert.rejects(f.db.exec(`delete from public.${table} where false`),/permission denied/);await assert.rejects(f.db.exec(`truncate public.${table}`),/permission denied/);
+ }
+ await f.command('SAVE',save);const a=await approved(f),r=await f.command('RESERVE',{approval_id:a.approval_id,channel:'email'});await f.command('BEGIN',{dispatch_id:r.dispatch_id,channel:'email'});await f.command('FINISH',{dispatch_id:r.dispatch_id,status:'SENT',provider_id:'minimal-acl'});assert.equal((await f.command('STATUS',{dispatch_id:r.dispatch_id})).status,'SENT');
+}finally{await f.db.close();}});
 test.after(shutdown);
