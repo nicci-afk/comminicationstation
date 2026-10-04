@@ -1,7 +1,7 @@
 // Exact API inventory; no deployment. Historical releases stay immutable.
 import fs from 'node:fs';import path from 'node:path';import vm from 'node:vm';import assert from 'node:assert/strict';import {createHash} from 'node:crypto';import {execFileSync} from 'node:child_process';import {stripTypeScriptTypes} from 'node:module';import {fileURLToPath} from 'node:url';
 const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
-const pin='7d5d54601a33f4b806f941126394a4e98ae8297ce8bb0dfacb755b7b12155f4f';
+const pin='6dd93384e1a73e3c4652fb6b0efab1791919c13b70d2e9c7a42f417a07168ec9';
 export const digest=b=>createHash('sha256').update(b).digest('hex');
 const blob=s=>createHash('sha1').update(`blob ${Buffer.byteLength(s)}\0`).update(s).digest('hex');
 export function materialize(out,{manifest=JSON.parse(fs.readFileSync(path.join(root,'tests/fixtures/reply-api-release-manifest.json'),'utf8')),read=p=>fs.readFileSync(path.join(root,p),'utf8'),baseline=p=>execFileSync('git',['show',`${manifest.source_base_commit}:${p}`],{cwd:root,encoding:'utf8'}),cutover=null}={}){

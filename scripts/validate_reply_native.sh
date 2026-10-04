@@ -47,7 +47,7 @@ export REPLY_DB_CONTAINER="supabase_db_$PROJECT" REPLY_STATUS="$WORK/status.json
 for migration in 0001_core.sql 0002_channels_contacts_messages.sql 0003_queue_pipeline.sql 0004_rpcs.sql 0006_hotfixes.sql 0007_security_hardening.sql 0008_categorization_update.sql 0016_gmail_send_scope.sql; do
   docker exec -i "$REPLY_DB_CONTAINER" psql -U postgres -d postgres -v ON_ERROR_STOP=1 <"$ROOT/supabase/migrations/$migration" >>"$EVIDENCE/schema.log" 2>&1
 done
-for source in tests/fixtures/reply-canonical-ingest.sql tests/fixtures/reply-native-support.sql scripts/mcc_reply_evidence_integration.sql; do
+for source in tests/fixtures/reply-canonical-ingest.sql tests/fixtures/reply-native-support.sql supabase/migrations/20261004040537_reply_evidence_approval_dispatch_v1.sql; do
   docker exec -i "$REPLY_DB_CONTAINER" psql -U postgres -d postgres -v ON_ERROR_STOP=1 <"$ROOT/$source" >>"$EVIDENCE/schema.log" 2>&1
 done
 if [[ "$VARIANT" == cutover ]]; then

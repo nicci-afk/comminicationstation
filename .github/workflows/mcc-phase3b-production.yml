@@ -1,4 +1,4 @@
-# Manual, approved exact-candidate release with bounded rollback.
+# Manual, approved exact reply-candidate frontend release; rollback remains disabled.
 # No push trigger; consequential operations require exact confirmation inputs.
 name: MCC Phase 3B approved production release
 
@@ -16,7 +16,7 @@ on:
         type: string
         required: false
       confirmation:
-        description: 'deploy: c3e6f4ea4cc39e15e6c3cc9bca6422d1b81f2217; rollback: dpl_G4Ju1NMyeA6VMyGWkEmmusxNpjb2'
+        description: 'deploy: ab56c8638a729922bd12b7264d62ea65d74f1e78; rollback: not authorized'
         type: string
         required: false
 
@@ -48,5 +48,5 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          echo 'b07e1a5ab318bf1be34adf515790a233a348e0d1724cbbb065ca4c9565ecc72e  scripts/mcc_frontend_release.py' | sha256sum --check --strict
+          echo 'e09ccc8c7a8d97b126415e8e93381ffd5ce3fc665fe3a5eeddc0c5dfc2b5683d  scripts/mcc_frontend_release.py' | sha256sum --check --strict
           python3 scripts/mcc_frontend_release.py

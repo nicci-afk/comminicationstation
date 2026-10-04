@@ -17,6 +17,6 @@ for(const enabled of [true,false]) {
   }
   manifest.wrapper.push({name:path.basename(dir),sha256:digest(fs.readFileSync(path.join(dir,'index.ts')))});
 }
-manifest.sql=['0001_core.sql','0002_channels_contacts_messages.sql','0003_queue_pipeline.sql','0004_rpcs.sql','0006_hotfixes.sql','0007_security_hardening.sql','0008_categorization_update.sql','0016_gmail_send_scope.sql'].map(n=>'supabase/migrations/'+n).concat(['scripts/mcc_reply_evidence_integration.sql','tests/fixtures/reply-canonical-ingest.sql','tests/fixtures/reply-native-support.sql']).map(p=>({path:p,sha256:digest(fs.readFileSync(path.join(root,p)))}));
+manifest.sql=['0001_core.sql','0002_channels_contacts_messages.sql','0003_queue_pipeline.sql','0004_rpcs.sql','0006_hotfixes.sql','0007_security_hardening.sql','0008_categorization_update.sql','0016_gmail_send_scope.sql'].map(n=>'supabase/migrations/'+n).concat(['scripts/mcc_reply_evidence_integration.sql','supabase/migrations/20261004040537_reply_evidence_approval_dispatch_v1.sql','tests/fixtures/reply-canonical-ingest.sql','tests/fixtures/reply-native-support.sql']).map(p=>({path:p,sha256:digest(fs.readFileSync(path.join(root,p)))}));
 if(variant==='cutover')manifest.cutoverSQL={path:'supabase/migrations/20261003231928_gmail_generation_mutation_fence_v1.sql',sha256:digest(fs.readFileSync(path.join(cutover,'supabase/migrations/20261003231928_gmail_generation_mutation_fence_v1.sql')))};
 fs.mkdirSync(evidence,{recursive:true});fs.writeFileSync(path.join(evidence,'runtime-source-manifest.json'),JSON.stringify(manifest,null,2)+'\n');

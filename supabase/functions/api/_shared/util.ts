@@ -5,9 +5,26 @@ import { createClient, SupabaseClient } from "@supabase/supabase-js";
 export const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
-export function serviceClient(): SupabaseClient {
+export type DatabaseCaller =
+  | { kind: "api" }
+  | { kind: "worker" }
+  | { kind: "sync"; generation: string; jobId: number; claimToken: string };
+
+// Server-owned version markers, not credentials or tenant authorization.
+// No incoming request headers or payload fields are forwarded here.
+export function serviceClient(caller: DatabaseCaller = { kind: "api" }): SupabaseClient {
+  const headers: Record<string, string> = {
+    "x-mcc-caller": caller.kind === "api" ? "api-gmail-fence-v1"
+      : caller.kind === "sync" ? "gmail-sync-v1" : "other-worker-v1",
+  };
+  if (caller.kind === "sync") {
+    headers["x-mcc-sync-generation"] = caller.generation;
+    headers["x-mcc-sync-job"] = String(caller.jobId);
+    headers["x-mcc-sync-token"] = caller.claimToken;
+  }
   return createClient(SUPABASE_URL, SERVICE_ROLE_KEY, {
     auth: { persistSession: false },
+    global: { headers },
   });
 }
 
@@ -233,7 +250,7 @@ export async function runWorker(
   budgetMs: number,
   handler: (db: SupabaseClient, job: Job) => Promise<void>,
 ): Promise<Response> {
-  const db = serviceClient();
+  const db = serviceClient({ kind: "worker" });
   await requireWorkerAuth(req, db);
   const start = Date.now();
   let processed = 0;

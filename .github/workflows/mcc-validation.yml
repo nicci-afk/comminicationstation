@@ -132,3 +132,43 @@ jobs:
             test-results/mcc-sync-runtime/
 
 
+  # Preserve the immutable deployed generation release; reply matrix checks combined API/fence.
+  gmail-generation:
+    name: Gmail generation native fencing and exact runtime
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: 019098c85561c234dc3c49f0e16f0fb42c3b7ec6
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24.14.1"
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: "v2.9.0"
+      - uses: supabase/setup-cli@v1
+        with:
+          version: "2.75.0"
+      - run: npm ci
+      - run: npm ci --prefix apps/web
+      - name: Generation materializer tamper and scope tests
+        run: node --experimental-vm-modules --test tests/mcc_generation_materializer.test.mjs
+      - name: Verify reviewed materialization and source closure
+        run: node --experimental-vm-modules scripts/materialize_mcc_generation_release.mjs "$RUNNER_TEMP/mcc-generation-bundles"
+      - name: Local SQL and exact-source compatibility regressions
+        run: bash scripts/validate_mcc_generation_local.sh "$RUNNER_TEMP/mcc-generation-bundles"
+      - name: Native containment, import graph and no-new-Deno-diagnostics
+        run: MCC_RUNTIME_EVIDENCE="$GITHUB_WORKSPACE/test-results/mcc-generation-containment" bash scripts/validate_mcc_agentedge_runtime.sh "$RUNNER_TEMP/mcc-generation-bundles"
+      - name: Native checkpoint regressions against generation worker
+        run: bash scripts/validate_mcc_generation_checkpoints.sh "$RUNNER_TEMP/mcc-generation-bundles"
+      - name: Independent PostgreSQL sessions, canonical ingest, PostgREST and pgmq
+        run: bash scripts/validate_mcc_generation_native.sh "$RUNNER_TEMP/mcc-generation-bundles"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: mcc-generation-native-evidence
+          path: |
+            test-results/mcc-generation-*/
+            ${{ runner.temp }}/mcc-generation-bundles/materialization.json
