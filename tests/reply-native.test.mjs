@@ -99,4 +99,4 @@ await test('native reply trust boundary, dispatch, and interleavings',async t=>{
  });
  assert.equal(sql('select count(*) from cron.job;'),'0');assert.equal(sql('select count(*) from net.http_request_queue;'),'0');
  fs.writeFileSync(path.join(evidence,'native-versions.txt'),sql('select version();'));
- }finally{for(const s of sessions)s.close();fs.writeFileSync(path.join(evidence,'lock-observations.json'),JSON.stringify(locks,null,2)+'\n');}});
+ }finally{await Promise.all(sessions.map(s=>s.close()));fs.writeFileSync(path.join(evidence,'lock-observations.json'),JSON.stringify(locks,null,2)+'\n');}});
