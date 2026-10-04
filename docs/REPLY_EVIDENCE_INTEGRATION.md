@@ -15,7 +15,7 @@ Source baseline: `nicci-afk/comminicationstation` main `aaa2735a64732e0976c5abfa
 - Current-source checking, full-reply/source review, exact approval, durable one-use reservation and final pre-provider state check
 - Every manual or generated reply goes through the same gate. The old client `USER_CONFIRMED` literal is not accepted as approval
 - Exact final body, subject, recipients, sending account, channel and threading headers are frozen before approval and loaded server-side for dispatch. Request-body replacement text is ignored
-- One dispatch per draft revision and one dispatch per approval. Pending/unknown delivery in a context blocks new approvals; it cannot be bypassed with a new approval or edited draft
+- One dispatch per draft revision and one dispatch per approval. Pending/unknown delivery on a conversation thread blocks new approvals; it cannot be bypassed with a new approval, edited draft or new queue episode
 - Known send success is recorded before ingestion. Ingestion failure is distinct from delivery failure. Timeout/malformed responses are UNKNOWN; no automatic provider retry exists. Repeated sends return durable status. Cancel cannot falsely claim an in-progress send stopped
 - UI blocks unsupported claims, displays dated source evidence, invalidates review on edits, suppresses stale responses, and preserves status lookup after a lost send response, and rejects a generated draft belonging to another queue item. Source links reveal the local source without throwing away the draft
 
@@ -72,3 +72,5 @@ See `REPLY_NATIVE_VALIDATION.md` for the prepared validation-only native Auth/Po
 Canonical Gmail ingestion leaves outbound contact IDs empty. Such messages qualify only with an existing SENT reply-dispatch receipt binding the exact provider message ID, user, thread, business/client, sending account, sender and sole recipient. Stored extra CC/BCC, aliases or foreign account/client links deny scope. Hashes/invalidation include direction, addresses and headers. This adds no table or privilege. The source origin is visible as your prior outbound message, never supplier confirmation; it remains human-reviewed evidence.
 
 Historical sent messages without that trustworthy receipt stay excluded because old metadata cannot prove a complete BCC envelope. Their presence keeps complete-context approval blocked, even after bodies load. The UI explains that limitation; it does not silently omit them and claim full review. Legacy thread support needs a separate trustworthy envelope/source adapter.
+
+Unresolved dispatch checks use the conversation thread, not just a queue episode. Marking an item responded or opening a new episode does not authorize retrying an UNKNOWN send. Partial indexes on pending dispatches and confirmed provider IDs support these lookups. A before/after regression reproduced and closed the episode-change bypass.

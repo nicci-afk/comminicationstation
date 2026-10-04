@@ -48,3 +48,5 @@ The source-loading extension exercises the real body route, native cache write, 
 ## Receipt-backed lifecycle extension
 
 The body-loading head `140c04f0ec2f6d303c88ef7fe9922fe14744ef4a` passed all seven CI jobs. The subsequent reviewed source-scope extension admits canonical null-contact outbound Gmail messages only with a matching immutable SENT dispatch receipt, and tests post-send/new-inbound continuity, wrong recipient, extra CC/BCC, unverified alias and account transfer. Direction is visible; human review cannot be promoted to supplier authority. Missing legacy receipt/envelope data remains a visible full-context blocker. The extension requires a fresh exact-head CI receipt.
+
+The final unknown-outcome audit reproduced an episode-change bypass in the original context-only pending check. The gate now follows the same owned thread across queue episodes; the native timeout/malformed cases explicitly close the old item, open another episode and verify approval remains denied. This narrows send permission and adds no grants or tables.

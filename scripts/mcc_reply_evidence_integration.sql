@@ -52,6 +52,8 @@ create index reply_context_thread on public.reply_context_state(thread_id,user_i
 create index reply_evidence_context on public.reply_fact_evidence(context_id,user_id,fact_key);
 create index reply_evidence_message on public.reply_fact_evidence(message_id,user_id);
 create index reply_checks_draft on public.reply_checks(draft_id,user_id,created_at desc);
+create index reply_dispatches_pending on public.reply_dispatches(user_id,check_id) where status in('RESERVED','SENDING','UNKNOWN');
+create index reply_dispatches_sent_provider on public.reply_dispatches(user_id,provider_id) where status='SENT';
 
 -- All new browser writes are denied. Internal tables are available through projected API reads only.
 do $$ declare t text; begin
@@ -261,7 +263,8 @@ begin
    if found then return jsonb_build_object('dispatch_id',ds.id,'status',ds.status,'existing',true); end if;
   end if;
   if ck.expires_at<=v_now or ck.state_snapshot is distinct from st or ck.result->>'status'<>'SOURCE_SUPPORTED_REQUIRES_REVIEW' then raise exception 'reply check expired or state changed'; end if;
-  if p_operation in('APPROVE','RESERVE','BEGIN') and exists(select 1 from public.reply_dispatches x join public.reply_checks k on k.id=x.check_id and k.user_id=x.user_id where k.context_id=ck.context_id and x.user_id=p_actor and x.status in('RESERVED','SENDING','UNKNOWN') and (p_operation<>'BEGIN' or x.id<>ds.id)) then raise exception 'reply previous dispatch is pending or outcome unresolved'; end if;
+  -- Closing a queue item and opening another episode cannot escape an unknown send.
+  if p_operation in('APPROVE','RESERVE','BEGIN') and exists(select 1 from public.reply_dispatches x join public.reply_checks k on k.id=x.check_id and k.user_id=x.user_id join public.reply_context_state previous_context on previous_context.id=k.context_id and previous_context.user_id=k.user_id where previous_context.thread_id=(st->'draft'->>'threadId')::uuid and x.user_id=p_actor and x.status in('RESERVED','SENDING','UNKNOWN') and (p_operation<>'BEGIN' or x.id<>ds.id)) then raise exception 'reply previous dispatch is pending or outcome unresolved'; end if;
   if p_operation='APPROVE' then
    if p_input->>'coverage_reviewed' is distinct from 'true' or p_input->>'snapshot_key' is distinct from ck.result->>'snapshotKey' or p_input->>'review_key' is distinct from ck.result->>'reviewKey' then raise exception 'exact reply review required'; end if;
    update public.reply_checks set coverage_reviewed_at=v_now where id=ck.id;
