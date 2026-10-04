@@ -34,15 +34,14 @@ import {
 import type { Message, QueueItem } from "../lib/types";
 import { BusinessChip } from "../components/ItemCard";
 import StrategyPanel from "../components/StrategyPanel";
+import ReplyReview from "../components/ReplyReview";
 
 export default function ItemDetail() {
   const { id } = useParams();
   const nav = useNavigate();
   const qc = useQueryClient();
   const action = useItemAction();
-  const [draft, setDraft] = useState<{ text: string; notes: string; verificationNeeded: string[] } | null>(null);
-  const [smsText, setSmsText] = useState("");
-  const [emailText, setEmailText] = useState("");
+  const [draft, setDraft] = useState<{ itemId:string; id:string; revision:number; text: string; notes: string; verificationNeeded: string[] } | null>(null);
   const [error, setError] = useState("");
   const [blockStatus, setBlockStatus] = useState<"" | "confirming" | "blocking" | "done">("");
   const [linkSearch, setLinkSearch] = useState("");
@@ -121,46 +120,13 @@ export default function ItemDetail() {
   });
 
   const draftMutation = useMutation({
-    mutationFn: async () => await api<{ draft: string; notes: string; verification_needed?: string[]; approval_state?: string }>(
+    mutationFn: async () => await api<{ queue_item_id:string; draft_id:string; revision?:number; draft: string; notes: string; verification_needed?: string[]; approval_state?: string }>(
       "draft-reply",
       { queue_item_id: id },
     ),
     onSuccess: (d) => {
-      setDraft({ text: d.draft, notes: d.notes, verificationNeeded: d.verification_needed ?? [] });
+      setDraft({ itemId:d.queue_item_id,id:d.draft_id,revision:d.revision??1,text: d.draft, notes: d.notes, verificationNeeded: d.verification_needed ?? [] });
       setError("");
-    },
-    onError: (e) => setError((e as Error).message),
-  });
-
-  const sendSms = useMutation({
-    mutationFn: async () =>
-      await api("twilio-send", {
-        thread_id: item!.thread_id,
-        body: smsText,
-        approval: "USER_CONFIRMED",
-      }),
-    onSuccess: () => {
-      setSmsText("");
-      qc.invalidateQueries({ queryKey: ["messages"] });
-      qc.invalidateQueries({ queryKey: ["queue"] });
-      setError("");
-    },
-    onError: (e) => setError((e as Error).message),
-  });
-
-  const sendEmail = useMutation({
-    mutationFn: async () =>
-      await api("gmail-send", {
-        queue_item_id: id,
-        body: emailText,
-        approval: "USER_CONFIRMED",
-      }),
-    onSuccess: () => {
-      setEmailText("");
-      qc.invalidateQueries({ queryKey: ["messages", item?.thread_id] });
-      qc.invalidateQueries({ queryKey: ["queue"] });
-      setError("");
-      nav(-1);
     },
     onError: (e) => setError((e as Error).message),
   });
@@ -307,65 +273,18 @@ export default function ItemDetail() {
           {messages.map((m) => <MessageBubble key={m.id} m={m} />)}
         </div>
 
-        {isPhone ? (
-          <div className="mt-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl p-3">
-            <textarea
-              value={smsText}
-              onChange={(e) => setSmsText(e.target.value)}
-              onFocus={(e) => e.currentTarget.scrollIntoView({ behavior: "smooth", block: "nearest" })}
-              placeholder={`Reply by ${item.channel === "whatsapp" ? "WhatsApp" : "text"}…`}
-              className="w-full text-sm border-0 focus:outline-none resize-none bg-transparent dark:text-slate-100 dark:placeholder-slate-500"
-              rows={3}
-            />
-            <div className="flex justify-end">
-              <button
-                onClick={() => sendSms.mutate()}
-                disabled={!smsText.trim() || sendSms.isPending}
-                className="flex items-center gap-1 bg-indigo-600 text-white rounded-lg px-4 py-2 text-sm disabled:opacity-50"
-              >
-                <Send className="w-4 h-4" /> Send
-              </button>
-            </div>
-          </div>
-        ) : threadAccount?.has_send_scope ? (
-          <div className="mt-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl p-3">
-            <div className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400 mb-2">
-              <span>Replying as</span>
-              <span className="font-medium text-slate-700 dark:text-slate-300">{threadAccount.email_address}</span>
-              <span>→</span>
-              <span className="font-medium text-slate-700 dark:text-slate-300 truncate">{item.sender_identifier}</span>
-            </div>
-            <textarea
-              value={emailText}
-              onChange={(e) => setEmailText(e.target.value)}
-              onFocus={(e) => e.currentTarget.scrollIntoView({ behavior: "smooth", block: "nearest" })}
-              placeholder="Write your reply…"
-              className="w-full text-sm border-0 focus:outline-none resize-none bg-transparent dark:text-slate-100 dark:placeholder-slate-500"
-              rows={5}
-            />
-            <div className="flex justify-end mt-1">
-              <button
-                onClick={() => sendEmail.mutate()}
-                disabled={!emailText.trim() || sendEmail.isPending}
-                className="flex items-center gap-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg px-4 py-2 text-sm disabled:opacity-50"
-              >
-                <Send className="w-4 h-4" />
-                {sendEmail.isPending ? "Sending…" : "Send"}
-              </button>
-            </div>
-          </div>
-        ) : (
-          <p className="mt-4 text-xs text-slate-400 dark:text-slate-500">
-            Reply from Gmail as usual — the moment your reply lands in Sent, this flips to "responded" automatically.
-            {threadAccount !== undefined && !threadAccount?.has_send_scope && (
-              <> <Link to="/settings" className="text-indigo-600 dark:text-indigo-400 hover:underline">Reconnect Gmail in Settings</Link> to reply directly from here.</>
-            )}
-          </p>
-        )}
+        {(isPhone || threadAccount?.has_send_scope) ? (
+          <ReplyReview key={item.id} itemId={item.id} channel={item.channel} initialDraft={draft?.itemId===item.id?draft:null} onSent={() => {
+            qc.invalidateQueries({queryKey:["messages",item.thread_id]});
+            qc.invalidateQueries({queryKey:["queue"]});
+            qc.invalidateQueries({queryKey:["item",item.id]});
+            qc.invalidateQueries({queryKey:["item-events",item.id]});
+          }}/>
+        ) : <p className="mt-4 text-sm text-slate-500">Direct sending is unavailable for this account. Review its connection settings before replying here.</p>}
 
         {error && <p className="mt-3 text-sm text-red-600 dark:text-red-400">{error}</p>}
 
-        {draft && (
+        {draft && draft.itemId===item.id && (
           <div className="mt-4 bg-indigo-50 dark:bg-indigo-950 border border-indigo-200 dark:border-indigo-800 rounded-xl p-4">
             <div className="flex items-center justify-between">
               <span className="text-sm font-semibold text-indigo-800 dark:text-indigo-200">Strategy draft</span>

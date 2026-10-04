@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """Manual MCC frontend controller. Standard library only; no backend operations.
 
-Preparation is not release authorization. Never retry a failed/uncertain POST.
+Reply release approved by the owner on 2026-10-04 03:53:05 UTC; sending remains disabled.
+Fresh combined CI and backend preflight are additional operator gates. Never retry a failed/uncertain POST.
 The source payload consists only of the immutable apps/web Git blobs. It contains
 no gitSource, gitMetadata, projectSettings, environment values, or backend files.
 """
@@ -18,23 +19,28 @@ import urllib.error
 import urllib.parse
 import urllib.request
 
-CANDIDATE = "c3e6f4ea4cc39e15e6c3cc9bca6422d1b81f2217"
-WEB_TREE = "9c0af59fd5689fc079647d368fee9f1642ba604c"
-MANIFEST_SHA256 = "bdc3a9a11a6c6876b147f6b0e4491c6531f99f80c2cc832b8b6d2907bed421cd"
+CANDIDATE = "ab56c8638a729922bd12b7264d62ea65d74f1e78"
+INTEGRATION_BASE = "e4159499072b7e3ee0e73e69d6eb9776dbe76f72"
+WEB_TREE = "3e6b8707851efff303a4cb8c08ba204c8d1d47b2"
+MANIFEST_SHA256 = "fc2c9dafe31fbbef5a99a75de58fc97ab78b943267d5293e8bdbea4dcc4c0a91"
 REPOSITORY = "nicci-afk/comminicationstation"
-INSPECT_BRANCH = "mcc-release/frontend-preflight-c3e6f4e"
-CI_RUN = "37054086235"
-CI_JOBS = {"Phase 1 + Phase 1.5 safety suite", "Phase 3B Focus and capture candidate", "Phase 3B isolated Supabase and browser"}
+INSPECT_BRANCH = "feat/evidence-backed-reply-review"
+CI_RUNS = [
+    ("37170905326", ".github/workflows/mcc-validation.yml", {"Phase 1 + Phase 1.5 safety suite", "Phase 3B Focus and capture candidate", "Phase 3B isolated Supabase and browser", "Historical checkpoint and containment runtime preflight"}),
+    ("37170905299", ".github/workflows/mcc-reply-validation.yml", {"Reply deterministic and UI suite", "Reply native and browser (main)", "Reply native and browser (cutover)"}),
+]
 PROJECT = "prj_kypK3A8FOS9XdLadXmAr6pUHW7hA"
 TEAM = "team_VyloIj0OJAb3IN63CmPGvqeG"
-BASELINE_ID = "dpl_G4Ju1NMyeA6VMyGWkEmmusxNpjb2"
-BASELINE_CREATED_AT = 1790855758615
-BASELINE_SHA = "37754b86f6ce910fe06903624d55cea03745ed1c"
+BASELINE_ID = "dpl_26YQPWFwF5e4UpCKwgs9AumyVsod"
+BASELINE_CREATED_AT = 1791043433033
+BASELINE_SHA = "c3e6f4ea4cc39e15e6c3cc9bca6422d1b81f2217"
+BASELINE_TREE = "9c0af59fd5689fc079647d368fee9f1642ba604c"
+BASELINE_MANIFEST = "bdc3a9a11a6c6876b147f6b0e4491c6531f99f80c2cc832b8b6d2907bed421cd"
 DOMAINS = ["message-command-center-iota.vercel.app"]
-BASELINE_URL = "message-command-center-2eg3fq85d-agentedge.vercel.app"
-BASELINE_BRANCH_ALIAS = "message-command-center-git-37754b86f6ce910fe06-3ad478-agentedge.vercel.app"
+BASELINE_URL = "message-command-center-10eevqlgv-agentedge.vercel.app"
+# The inline-source baseline has no generated Git-branch alias.
 RELEASE_AUTHORIZATION = "APPROVED"
-ROLLBACK_AUTHORIZATION = "APPROVED"
+ROLLBACK_AUTHORIZATION = "NOT_GRANTED"
 EXPECTED_SETTINGS = {"rootDirectory": ".", "framework": "vite", "buildCommand": "AUTO", "installCommand": "AUTO", "outputDirectory": "AUTO", "nodeVersion": "24.x", "gitConnection": None}
 
 
@@ -86,7 +92,7 @@ def deployment_identity(deployment, expected_id, candidate=False, ready=True):
     if candidate:
         require(metadata.get("mccSourceCommit") == CANDIDATE and metadata.get("mccSourceTree") == WEB_TREE and metadata.get("mccSourceManifest") == MANIFEST_SHA256, "Candidate source provenance differs")
     else:
-        require(metadata.get("githubCommitSha") == BASELINE_SHA, "Rollback baseline source differs")
+        require(metadata.get("mccSourceCommit") == BASELINE_SHA and metadata.get("mccSourceTree") == BASELINE_TREE and metadata.get("mccSourceManifest") == BASELINE_MANIFEST, "Baseline source provenance differs")
     require(not deployment.get("aliasError"), "Deployment alias error")
 
 
@@ -97,7 +103,7 @@ def git(*args):
 def validate_files(records):
     """Validate and base64-encode an immutable Git tree's regular files only."""
     files, manifest = [], []
-    require(len(records) == 29, "Unexpected candidate source file count")
+    require(len(records) == 30, "Unexpected candidate source file count")
     seen = set()
     for name, mode, data in sorted(records):
         parts = PurePosixPath(name).parts
@@ -174,14 +180,15 @@ class API:
 
 
 def verify_ci(api):
-    run = api.json("github", f"/repos/{REPOSITORY}/actions/runs/{CI_RUN}")
-    require(run.get("head_sha") == CANDIDATE and run.get("status") == "completed" and run.get("conclusion") == "success" and run.get("path") == ".github/workflows/mcc-validation.yml", "Exact candidate CI has not passed")
-    response = api.json("github", f"/repos/{REPOSITORY}/actions/runs/{CI_RUN}/jobs?per_page=100")
-    jobs = response.get("jobs", [])
-    require(response.get("total_count") == len(jobs), "CI jobs pagination/inventory incomplete")
-    for name in CI_JOBS:
-        matches = [job for job in jobs if job.get("name") == name]
-        require(len(matches) == 1 and matches[0].get("status") == "completed" and matches[0].get("conclusion") == "success", "Required candidate CI job missing/failed/ambiguous")
+    for run_id, workflow, required_jobs in CI_RUNS:
+        run = api.json("github", f"/repos/{REPOSITORY}/actions/runs/{run_id}")
+        require(run.get("head_sha") == CANDIDATE and run.get("status") == "completed" and run.get("conclusion") == "success" and run.get("path") == workflow, "Exact candidate CI has not passed")
+        response = api.json("github", f"/repos/{REPOSITORY}/actions/runs/{run_id}/jobs?per_page=100")
+        jobs = response.get("jobs", [])
+        require(response.get("total_count") == len(jobs), "CI jobs pagination/inventory incomplete")
+        for name in required_jobs:
+            matches = [job for job in jobs if job.get("name") == name]
+            require(len(matches) == 1 and matches[0].get("status") == "completed" and matches[0].get("conclusion") == "success", "Required candidate CI job missing/failed/ambiguous")
 
 
 def verify_no_later_deployment(api):
@@ -197,7 +204,7 @@ def verify_live(api, current_id, candidate=False, auto_assignment=True):
     for domain in DOMAINS:
         deployment_identity(api.deployment(domain), current_id, candidate)
     # These are historical generated URLs, not domains to repoint to the release.
-    for historical_url in (BASELINE_URL, BASELINE_BRANCH_ALIAS):
+    for historical_url in (BASELINE_URL,):
         deployment_identity(api.deployment(historical_url), BASELINE_ID)
 
 
@@ -248,6 +255,7 @@ def main():
     validate_operation(operation, os.environ.get("CONFIRMATION", ""), release_id)
     if operation != "rollback":
         subprocess.run(["git", "merge-base", "--is-ancestor", CANDIDATE, "HEAD"], check=True)
+        subprocess.run(["git", "merge-base", "--is-ancestor", INTEGRATION_BASE, "HEAD"], check=True)
         subprocess.run(["git", "diff", "--exit-code", CANDIDATE, "HEAD", "--", "apps/web"], check=True)
         payload, manifest = source_payload()
         print(f"Verified {len(manifest)} committed frontend blobs; payload {len(canonical(payload))} bytes; settings {digest(EXPECTED_SETTINGS)}")

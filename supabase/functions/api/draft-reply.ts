@@ -132,7 +132,7 @@ export default async function handler(req: Request): Promise<Response> {
         confidence: (chosen.confidence as string) === "green" ? "green" : "yellow",
         cost_usd: result.costUsd,
       })
-      .select("id")
+      .select("id,revision")
       .single();
     if (error) throw new Error(error.message);
 
@@ -153,6 +153,8 @@ export default async function handler(req: Request): Promise<Response> {
       notes: parsed.notes ?? "",
       verification_needed: verificationNeeded,
       draft_id: saved.id,
+      queue_item_id: itemId,
+      revision: saved.revision,
       approval_state: "DRAFT_ONLY",
     });
   } catch (e) {

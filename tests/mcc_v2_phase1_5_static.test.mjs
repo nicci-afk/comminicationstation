@@ -13,6 +13,8 @@ const prompts = read("supabase/functions/api/_shared/prompts.ts");
 const draft = read("supabase/functions/api/draft-reply.ts");
 const gmail = read("supabase/functions/api/gmail-send.ts");
 const twilio = read("supabase/functions/api/twilio-send.ts");
+const review = read("apps/web/src/components/ReplyReview.tsx");
+const gate = read("supabase/functions/api/_shared/reply-review.ts");
 const hooks = read("apps/web/src/lib/hooks.ts");
 
 const checks = [
@@ -29,9 +31,9 @@ const checks = [
   ["Draft response exposes verification requirements", draft.includes("verification_needed") && draft.includes('approval_state: "DRAFT_ONLY"')],
   ["Draft UI labels output as draft-only", item.includes("Draft only · review before sending")],
   ["Draft UI surfaces verification-before-send list", item.includes("Verify before sending")],
-  ["Gmail send requires explicit manual approval", gmail.includes('approval !== "USER_CONFIRMED"')],
-  ["Twilio send requires explicit manual approval", twilio.includes('body.approval !== "USER_CONFIRMED"')],
-  ["Manual UI is the code path that supplies approval", (item.match(/approval: "USER_CONFIRMED"/g) ?? []).length === 2],
+  ["Gmail send requires persisted exact approval", gmail.includes("beginReplyDispatch") && !gmail.includes('approval !== "USER_CONFIRMED"')],
+  ["Twilio send requires persisted exact approval", twilio.includes("beginReplyDispatch") && !twilio.includes('body.approval !== "USER_CONFIRMED"')],
+  ["Review UI supplies persisted approval IDs and all sends fail closed by default", review.includes("Approve this exact reply") && /approval_id:\s*approvalId/.test(review) && gate.includes("MCC_REPLY_DISPATCH_ENABLED") && !item.includes('approval: "USER_CONFIRMED"')],
 ];
 
 let passed = 0;

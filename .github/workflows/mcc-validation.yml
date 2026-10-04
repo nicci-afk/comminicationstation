@@ -132,6 +132,7 @@ jobs:
             test-results/mcc-sync-runtime/
 
 
+  # Preserve the immutable deployed generation release; reply matrix checks combined API/fence.
   gmail-generation:
     name: Gmail generation native fencing and exact runtime
     runs-on: ubuntu-latest
@@ -140,6 +141,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          ref: 019098c85561c234dc3c49f0e16f0fb42c3b7ec6
       - uses: actions/setup-node@v4
         with:
           node-version: "24.14.1"

@@ -1,0 +1,244 @@
+{
+  "schema_version": 1,
+  "source_base_commit": "e4159499072b7e3ee0e73e69d6eb9776dbe76f72",
+  "repository": "nicci-afk/comminicationstation",
+  "project_id": "bgpjpomqrnwsdmrofudb",
+  "entrypoint_path": "api/index.ts",
+  "import_map_path": "api/deno.json",
+  "verify_jwt": false,
+  "files": [
+    {
+      "name": "api/_shared/agentedge-safety.ts",
+      "repository_path": "supabase/functions/api/_shared/agentedge-safety.ts",
+      "baseline_git_blob": "2df3d66967fcd8872a95c76143f73b10a9a6992e",
+      "candidate_sha256": "3cf5d97a2ae57c724a81ef527dc9b3e937bc589c82ea5642b2fd1acfd612aa74"
+    },
+    {
+      "name": "api/_shared/gmail.ts",
+      "repository_path": "supabase/functions/api/_shared/gmail.ts",
+      "baseline_git_blob": "db82e02b892b7e25c35cd650869ad9eba63e345a",
+      "candidate_sha256": "79313426061ebbe89a5c9baafcf662e162d48d2e9d6d1483a41fc6ce1db00e6f"
+    },
+    {
+      "name": "api/_shared/llm.ts",
+      "repository_path": "supabase/functions/api/_shared/llm.ts",
+      "baseline_git_blob": "5d6aebece807680d78952d46bf5d689747d978af",
+      "candidate_sha256": "0e154c999b5e51a889ae37f1b1459ea8482702579391cf9942c26ecf4368575b"
+    },
+    {
+      "name": "api/_shared/prompts.ts",
+      "repository_path": "supabase/functions/api/_shared/prompts.ts",
+      "baseline_git_blob": "66ce71bb7a3f4e5932b9326fa09932dfa24fbfe4",
+      "candidate_sha256": "939c1f947d2adb338e4c97ee664ca4f172882c31fea73d56dba9cfcefdace200"
+    },
+    {
+      "name": "api/_shared/reply-evidence.ts",
+      "repository_path": "supabase/functions/api/_shared/reply-evidence.ts",
+      "baseline_git_blob": null,
+      "candidate_sha256": "6681e1ab16ffd9d73c8555192d2a19482bd785ee18c36147d498a9ea83939b2d"
+    },
+    {
+      "name": "api/_shared/reply-review.ts",
+      "repository_path": "supabase/functions/api/_shared/reply-review.ts",
+      "baseline_git_blob": null,
+      "candidate_sha256": "6c343bb69255dbb2bb07793597b6c8046e552ad5d8359d3c1d4f7d2b5ada5e80"
+    },
+    {
+      "name": "api/_shared/schemas/comm.ts",
+      "repository_path": "supabase/functions/api/_shared/schemas/comm.ts",
+      "baseline_git_blob": "02323c53879b37b5a425305ae5d421a103ac60d9",
+      "candidate_sha256": "6e64c7860c88ea497de9bd58df6af6d7dbbe951692fd4cc7a89a218bb7d88662"
+    },
+    {
+      "name": "api/_shared/schemas/confidence.ts",
+      "repository_path": "supabase/functions/api/_shared/schemas/confidence.ts",
+      "baseline_git_blob": "5dc745d169d2dccaca81e9d82edd4213accaa1d2",
+      "candidate_sha256": "317852d09a3afcdd7539db7be4648830d67ef29b9659fcce6b4ebf516421e80f"
+    },
+    {
+      "name": "api/_shared/util.ts",
+      "repository_path": "supabase/functions/api/_shared/util.ts",
+      "baseline_git_blob": "87c393bb797b5f36494ccad8f91d555782b0f646",
+      "candidate_sha256": "09d8b9824e5df4a0d522c10e6f445e369804e610998abccee396b9157bd8c2b4"
+    },
+    {
+      "name": "api/admin-config.ts",
+      "repository_path": "supabase/functions/api/admin-config.ts",
+      "baseline_git_blob": "7685655cddd314fde5230ab7430c22efce492c70",
+      "candidate_sha256": "dc5a973280aba9a1a9656dd90aeac738965c68b0b251906c89b2f38130c5bdaa"
+    },
+    {
+      "name": "api/agentedge-historical-import.ts",
+      "repository_path": "supabase/functions/api/agentedge-historical-import.ts",
+      "baseline_git_blob": "048c69e594d23176ff4e42a71442e2840766fdc3",
+      "candidate_sha256": "ba748353d7cf2a925b9b0e8c00afd30cdd1f1e3a6e5358ef425d8cdf94519ba2"
+    },
+    {
+      "name": "api/agentedge-import-strategies.ts",
+      "repository_path": "supabase/functions/api/agentedge-import-strategies.ts",
+      "baseline_git_blob": "74643c7f59bc738a5c4551a9294a80d9664edafd",
+      "candidate_sha256": "63238c56aa30a787b1c45b95351cbe33d031c56f6a7f661f0c10dcd0d5fd62ba"
+    },
+    {
+      "name": "api/agentedge-relay.ts",
+      "repository_path": "supabase/functions/api/agentedge-relay.ts",
+      "baseline_git_blob": "8efcd3a7ac00dd6c4a74832e922da4744af8cd08",
+      "candidate_sha256": "437eff1f7721e87cd1571d9735371bbb23f9692f39478bd63bbac5c21f17f379"
+    },
+    {
+      "name": "api/agentedge-sync.ts",
+      "repository_path": "supabase/functions/api/agentedge-sync.ts",
+      "baseline_git_blob": "57d7da9ab15296ee9d1ebd1cd3e9b5383b6e79e8",
+      "candidate_sha256": "c8e15902b4a51c7eb6f1a71b9c89c92d6043d0010baeef66854247981988e6ba"
+    },
+    {
+      "name": "api/bootstrap.ts",
+      "repository_path": "supabase/functions/api/bootstrap.ts",
+      "baseline_git_blob": "8bd7d2ee9609fbcb6f1ef40b9120ded5d4788138",
+      "candidate_sha256": "3eedb7786904b6724664a028b6ac6686edaba61d27ed8028fb396c07da8e2cbc"
+    },
+    {
+      "name": "api/contact-link.ts",
+      "repository_path": "supabase/functions/api/contact-link.ts",
+      "baseline_git_blob": "b3645a5acf39ac50a85335361411fa227c7e1135",
+      "candidate_sha256": "b97049a224b2869a754c0d78cace08d4f43c88374e5e5ed54316c56b080fbcf1"
+    },
+    {
+      "name": "api/contact-merge.ts",
+      "repository_path": "supabase/functions/api/contact-merge.ts",
+      "baseline_git_blob": "730d12c96e0f8fe86bc02fad39b020296f2a077b",
+      "candidate_sha256": "2bdceb1f95c4ff96187f405810364af2e8ef29245a84bc6a28f6b9b55a9e5b8d"
+    },
+    {
+      "name": "api/contacts-google-sync.ts",
+      "repository_path": "supabase/functions/api/contacts-google-sync.ts",
+      "baseline_git_blob": "0da14fcdd64bc50bb5648982ab9e2f1658a6f75f",
+      "candidate_sha256": "57cc0b74646fac3b5775d3990841f8bcdc45bd6dcba6cdef609f2545895fa598"
+    },
+    {
+      "name": "api/contacts-vcf-import.ts",
+      "repository_path": "supabase/functions/api/contacts-vcf-import.ts",
+      "baseline_git_blob": "a2329f1f8bad870a44e24a0724ee453a5901c965",
+      "candidate_sha256": "f395e23428a09533c285d50c86f11294fc843e137b6bc3bdfa81901cf0e7cf46"
+    },
+    {
+      "name": "api/deno.json",
+      "repository_path": "supabase/functions/api/deno.json",
+      "baseline_git_blob": "a073d779a18c232c246f0b2cf121fd78168efc2c",
+      "candidate_sha256": "2c6b592cb8e6bf87667cadd52bc76ee3b16e26f068776c4741502cbdadaead4b"
+    },
+    {
+      "name": "api/draft-reply.ts",
+      "repository_path": "supabase/functions/api/draft-reply.ts",
+      "baseline_git_blob": "48082a0cff88dc528704799f4609055c9f3be25a",
+      "candidate_sha256": "47296a6c5660b4430e478c55e568b31c479164f41e1f53078644b6314153a08f"
+    },
+    {
+      "name": "api/gmail-deep-backfill.ts",
+      "repository_path": "supabase/functions/api/gmail-deep-backfill.ts",
+      "baseline_git_blob": "417fae907efbcc379bb7b3a54d122fc0a7ccbf65",
+      "candidate_sha256": "1cd76ff37a20683fb21b8ad979459b3fb1dc9958c6239bf006b1d72ec38ed888"
+    },
+    {
+      "name": "api/gmail-get-body.ts",
+      "repository_path": "supabase/functions/api/gmail-get-body.ts",
+      "baseline_git_blob": "dcf854030d222b1a987f5a207ae42aa8c1b6dfde",
+      "candidate_sha256": "9eff3eaec66e2a2276edbeee3d2c66d5a1d08547d1763c54680308af941e7f5f"
+    },
+    {
+      "name": "api/gmail-oauth-callback.ts",
+      "repository_path": "supabase/functions/api/gmail-oauth-callback.ts",
+      "baseline_git_blob": "ce631c9dc4bf753823135cf15677809009112448",
+      "candidate_sha256": "a2da4659f777bbb9468e05c6b25f2f84089f0d793c579db6078ce05e384d0112"
+    },
+    {
+      "name": "api/gmail-oauth-start.ts",
+      "repository_path": "supabase/functions/api/gmail-oauth-start.ts",
+      "baseline_git_blob": "0c9733d45e06121c54501a88f9985719c419b8d1",
+      "candidate_sha256": "c6e465fe148d717cc548f75b1910e4f2249fecdd2774b642f7aabcd153e66025"
+    },
+    {
+      "name": "api/gmail-push.ts",
+      "repository_path": "supabase/functions/api/gmail-push.ts",
+      "baseline_git_blob": "aff4e36ae54b6d1438ee46bb7e2b526cc541f5c4",
+      "candidate_sha256": "42671ed8ccb9c51777a08e261ffb18ae7456cbe3a459f404600f861c02f145b8"
+    },
+    {
+      "name": "api/gmail-send.ts",
+      "repository_path": "supabase/functions/api/gmail-send.ts",
+      "baseline_git_blob": "cd0f2ef516b3902957d42f3676121c7301d32796",
+      "candidate_sha256": "8f7879d3895b2331c8246dca03a800003511aedcdf3e684aad3d9390b8ed9a1c"
+    },
+    {
+      "name": "api/index.ts",
+      "repository_path": "supabase/functions/api/index.ts",
+      "baseline_git_blob": "dc32f0572f2fd3354ba6dc8ff1ae701baaf34fa0",
+      "candidate_sha256": "159f764624f3a61a19eaa7f20edf3b44b569776b0d8befdec4ee641b3e18c4c9"
+    },
+    {
+      "name": "api/interaction-update.ts",
+      "repository_path": "supabase/functions/api/interaction-update.ts",
+      "baseline_git_blob": "fc280b96a17a47d6f3bce4ac243ab351b01dbeb3",
+      "candidate_sha256": "8ac211d48edb1802857decd62b485c67d84e9f885b64660d9a0b1372445adf36"
+    },
+    {
+      "name": "api/mcc-fast-capture.ts",
+      "repository_path": "supabase/functions/api/mcc-fast-capture.ts",
+      "baseline_git_blob": "2da05d10a6faf993189f48a2af4dd2e7e4347090",
+      "candidate_sha256": "4e7a0abfbab3c90af64cc465458bd0e54f66f190943894dcb55f408c28d02e3d"
+    },
+    {
+      "name": "api/mcc-obligation-action.ts",
+      "repository_path": "supabase/functions/api/mcc-obligation-action.ts",
+      "baseline_git_blob": "4f5ca63be98df1123e211c9324c3c1d97f5c8fda",
+      "candidate_sha256": "f70855f2739380e1c28624cb442b9c2b8f40a6cf0aad90dc7b5bfe981355563a"
+    },
+    {
+      "name": "api/pipeline-start.ts",
+      "repository_path": "supabase/functions/api/pipeline-start.ts",
+      "baseline_git_blob": "a3fa3257c95b7defee5f879385ec5967f43d76c1",
+      "candidate_sha256": "d1d702ced42755357db7040383d60ddbe5bbd00910205f66f0116b7392408793"
+    },
+    {
+      "name": "api/reply-review.ts",
+      "repository_path": "supabase/functions/api/reply-review.ts",
+      "baseline_git_blob": null,
+      "candidate_sha256": "37cc373503bd248a5570f3a89b20360c2b6726d194f0b2ede659a3ad884a2aac"
+    },
+    {
+      "name": "api/spam-block.ts",
+      "repository_path": "supabase/functions/api/spam-block.ts",
+      "baseline_git_blob": "84ce8764201f4042262ee98cb780f911cdc48b86",
+      "candidate_sha256": "e2197f5f111851c23ef7307b80934d53f168ae6b80f04a43175b9edab45f92d4"
+    },
+    {
+      "name": "api/twilio-inbound.ts",
+      "repository_path": "supabase/functions/api/twilio-inbound.ts",
+      "baseline_git_blob": "a2a224ff32245c48802796978fbb464c9c31d623",
+      "candidate_sha256": "c29e704a0be15f1e454fe58fcbfe588f4896fb91402d88d9f3765dfc5c4ba5ff"
+    },
+    {
+      "name": "api/twilio-provision.ts",
+      "repository_path": "supabase/functions/api/twilio-provision.ts",
+      "baseline_git_blob": "dfc0f24087c92c29b735ea3708328cb7031ad19e",
+      "candidate_sha256": "29f98550292e5b303d35d29f286e0bd504a0224356809078d36659c23064dfdc"
+    },
+    {
+      "name": "api/twilio-send.ts",
+      "repository_path": "supabase/functions/api/twilio-send.ts",
+      "baseline_git_blob": "3811623370c8fbeab660e517626bebcf8bbb732e",
+      "candidate_sha256": "51f6449afa7e7328c35299452fc30f0df8cc62931d404c2202c5eda307a79e43"
+    }
+  ],
+  "changed_files": [
+    "api/_shared/reply-evidence.ts",
+    "api/_shared/reply-review.ts",
+    "api/draft-reply.ts",
+    "api/gmail-get-body.ts",
+    "api/gmail-send.ts",
+    "api/index.ts",
+    "api/reply-review.ts",
+    "api/twilio-send.ts"
+  ],
+  "cutover_util_git_blob": "87c393bb797b5f36494ccad8f91d555782b0f646"
+}

@@ -3,7 +3,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test:phase3b": "bash scripts/validate_mcc_phase3b_local.sh"
+    "test:phase3b": "bash scripts/validate_mcc_phase3b_local.sh",
+    "test:reply-evidence": "bash scripts/validate_reply_integration_local.sh"
   },
   "devDependencies": {
     "@electric-sql/pglite": "0.3.14",
