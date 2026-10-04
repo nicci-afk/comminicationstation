@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { api } from "../lib/supabase";
 import { detectReplyRisks, type Check, type Claim, type Evidence, type Draft } from "../../../../supabase/functions/api/_shared/reply-evidence";
 type Source = {
+    direction?: "inbound" | "outbound";
     bodyMissing?: boolean;
     id: string;
     hash: string;
@@ -17,6 +18,7 @@ type State = {
     evidenceRead: {
         complete: boolean;
         revision: string;
+        unresolvedOutboundCount?: number;
     };
     dispatch_enabled?: boolean;
 };
@@ -157,13 +159,14 @@ export default function ReplyReview({ itemId, channel, initialDraft, onSent }: {
    <p className="text-sm">From {state.draft.transport?.from} → {state.draft.recipients.join(", ")} · {state.draft.channel}</p>
    {state.draft.subject && <p className="text-sm">Subject: {state.draft.subject}</p>}
    {!state.evidenceRead.complete && <p role="alert" className="text-amber-700">Source review is incomplete. Missing full messages, unresolved client scope or a source limit blocks approval.</p>}
+   {!!state.evidenceRead.unresolvedOutboundCount && <p role="alert" className="text-sm text-amber-700">Some sent messages don't have a verifiable single-recipient delivery record. They are excluded as evidence, so full-context review remains incomplete and this reply is blocked here.</p>}
    {channel === "email" && state.sources.some(s => s.bodyMissing) && <button disabled={busy || !!delivery} className="rounded border px-3 py-2 text-sm disabled:opacity-50" onClick={() => { invalidate(); run(async (ticket) => { const missing = state.sources.filter(s => s.bodyMissing).slice(0, 20); for (const source of missing) {
             await api("gmail-get-body", { message_id: source.id });
             if (ticket !== version.current)
                 return;
         } const next = await api<State>("reply-review", { operation: "SNAPSHOT", draft_id: draftId.current }); if (ticket === version.current)
             setState(next); }); }}>Load next {Math.min(20, state.sources.filter(s => s.bodyMissing).length)} missing source bodies</button>}
-   <details ref={sourceDisclosure}><summary className="cursor-pointer text-sm">Review all {state.sources.length} source messages</summary>{state.sources.map(s => <article key={s.id} id={`reply-source-${s.id}`} tabIndex={-1} className="mt-2 border-l-2 pl-3"><p className="text-xs">{new Date(s.sentAt).toLocaleString()}</p><pre className="text-xs whitespace-pre-wrap font-sans">{s.text ?? "Full source unavailable"}</pre></article>)}</details>
+   <details ref={sourceDisclosure}><summary className="cursor-pointer text-sm">Review all {state.sources.length} eligible source messages</summary>{state.sources.map(s => <article key={s.id} id={`reply-source-${s.id}`} tabIndex={-1} className="mt-2 border-l-2 pl-3"><p className="text-xs">{s.direction === "outbound" ? "Your prior outbound message; not supplier confirmation" : "Incoming message"} · {new Date(s.sentAt).toLocaleString()}</p><pre className="text-xs whitespace-pre-wrap font-sans">{s.text ?? "Full source unavailable"}</pre></article>)}</details>
    {state.evidence.length > 0 && <details><summary className="cursor-pointer text-sm">Manage recorded evidence</summary>{state.evidence.filter(e => !e.revoked).map(e => <div key={e.id} className="text-xs my-2"><span>{e.factKey}: {e.value}</span> <button disabled={busy || !!delivery} className="underline" onClick={() => { invalidate(); run(async (ticket) => { const next = await api<State>("reply-review", { operation: "REVOKE", draft_id: draftId.current, revision: revision.current, evidence_id: e.id }); if (ticket === version.current) {
             setState(next);
             setClaimRows(rows => rows.map(r => ({ ...r, evidenceIds: r.evidenceIds.filter(id => id !== e.id) })));
@@ -179,7 +182,7 @@ export default function ReplyReview({ itemId, channel, initialDraft, onSent }: {
             const target = sourceDisclosure.current.querySelector<HTMLElement>(`#reply-source-${e.sourceId}`);
             target?.focus();
             target?.scrollIntoView({ block: "nearest" });
-        } }}>View source</a> · {new Date(e.sourceDate).toLocaleString()} · valid until {new Date(e.validUntil).toLocaleString()}<br />{e.excerpt}</p>)}</div>)}
+        } }}>View source</a> · {e.direction === "outbound" ? "Your prior outbound message; not supplier confirmation" : "Incoming source"} · {new Date(e.sourceDate).toLocaleString()} · valid until {new Date(e.validUntil).toLocaleString()}<br />{e.excerpt}</p>)}</div>)}
    {checked.check.status !== "BLOCKED" && <>
     <label className="flex gap-2 text-sm"><input type="checkbox" checked={reviewed} disabled={busy || !!delivery} onChange={e => { setReviewed(e.target.checked); setApproved(null); }}/>I reviewed the entire reply, recipient and complete source context, including conditions and claims the pattern check may have missed</label>
     <button disabled={busy || !reviewed || !!delivery} onClick={() => run(async (ticket) => { const a = await api<Approval>("reply-review", { operation: "APPROVE", check_id: checked.check_id, snapshot_key: checked.check.snapshotKey, review_key: checked.check.reviewKey, coverage_reviewed: true }); if (ticket === version.current)
@@ -228,10 +231,10 @@ function ClaimReview({ row, index, state, busy, styles, change, verify }: {
     const [replace, setReplace] = useState<string[]>([]);
     const source = state.sources.find(s => s.id === sourceId);
     useEffect(() => setAttested(false), [sourceId, excerpt, validity, row.factKey, row.value]);
-    return <fieldset className="border rounded p-3 space-y-2" disabled={busy}><legend className="text-sm font-medium">{index + 1}. {row.kind}: {row.quote}</legend>
+    return <fieldset className="min-w-0 border rounded p-3 space-y-2" disabled={busy}><legend className="text-sm font-medium">{index + 1}. {row.kind}: {row.quote}</legend>
   <label className="block text-xs">Fact identity, including quote/booking/transaction<input aria-label={`Fact key ${index + 1}`} value={row.factKey} onChange={e => change({ factKey: e.target.value })} className={styles}/></label>
   <label className="block text-xs">Exact canonical value (for example USD:125000 or date with timezone)<input aria-label={`Claim value ${index + 1}`} value={row.value} onChange={e => change({ value: e.target.value })} className={styles}/></label>
-  <select aria-label={`Source ${index + 1}`} className={styles} value={sourceId} onChange={e => setSourceId(e.target.value)}><option value="">Select a source you reviewed</option>{state.sources.filter(s => s.text !== null).map(s => <option key={s.id} value={s.id}>{new Date(s.sentAt).toLocaleString()} · {s.text?.slice(0, 90)}</option>)}</select>
+  <select aria-label={`Source ${index + 1}`} className={styles} value={sourceId} onChange={e => setSourceId(e.target.value)}><option value="">Select a source you reviewed</option>{state.sources.filter(s => s.text !== null).map(s => <option key={s.id} value={s.id}>{s.direction === "outbound" ? "Your prior outbound" : "Incoming"} · {new Date(s.sentAt).toLocaleString()} · {s.text?.slice(0, 90)}</option>)}</select>
   {source && <pre className="max-h-40 overflow-auto whitespace-pre-wrap font-sans text-xs">{source.text}</pre>}
   <textarea aria-label={`Source excerpt ${index + 1}`} className={styles} value={excerpt} onChange={e => setExcerpt(e.target.value)} placeholder="Paste the exact supporting excerpt" rows={2}/>
   <label className="text-xs block">Valid for <select aria-label={`Evidence validity ${index + 1}`} value={validity} onChange={e => setValidity(e.target.value)}><option value="0.0166666667">1 minute</option><option value="0.0833333333">5 minutes</option><option value="0.25">15 minutes</option><option value="1">1 hour</option><option value="4">4 hours</option><option value="24">24 hours</option></select> from this verification. Use the source's shorter actual validity.</label>

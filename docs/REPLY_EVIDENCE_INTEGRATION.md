@@ -66,3 +66,9 @@ Rollback should first disable the server-owned sending switch. Preserve all evid
 ## Native CI follow-on
 
 See `REPLY_NATIVE_VALIDATION.md` for the prepared validation-only native Auth/PostgREST/Edge/Chromium matrix and exact API materializer. Native execution remains pending until an exact-commit CI receipt is recorded. The follow-on adds one post-lock reservation replay correction; the earlier patch remains preserved.
+
+## Receipt-backed outbound source scope
+
+Canonical Gmail ingestion leaves outbound contact IDs empty. Such messages qualify only with an existing SENT reply-dispatch receipt binding the exact provider message ID, user, thread, business/client, sending account, sender and sole recipient. Stored extra CC/BCC, aliases or foreign account/client links deny scope. Hashes/invalidation include direction, addresses and headers. This adds no table or privilege. The source origin is visible as your prior outbound message, never supplier confirmation; it remains human-reviewed evidence.
+
+Historical sent messages without that trustworthy receipt stay excluded because old metadata cannot prove a complete BCC envelope. Their presence keeps complete-context approval blocked, even after bodies load. The UI explains that limitation; it does not silently omit them and claim full review. Legacy thread support needs a separate trustworthy envelope/source adapter.

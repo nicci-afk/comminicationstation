@@ -1,5 +1,5 @@
 // Native PostgreSQL/Auth/PostgREST/Edge tests. No request can reach a live provider.
-import test from 'node:test';import assert from 'node:assert/strict';import fs from 'node:fs';import path from 'node:path';
+import test from 'node:test';import assert from 'node:assert/strict';import fs from 'node:fs';import path from 'node:path';import {randomUUID} from 'node:crypto';
 import {boot,createUser,seed,save,approve,review,edge,rest,rpc,sql,quote,Session,blocked,locks,commandSQL,apiContext,anon} from './reply-native-helpers.mjs';
 const evidence=process.env.REPLY_EVIDENCE,sessions=[];let owner,other;
 const sendEvents=r=>r.data.__fixture_events.filter(e=>e.kind==='synthetic-send');
@@ -88,6 +88,22 @@ await test('native reply trust boundary, dispatch, and interleavings',async t=>{
  await t.test('edited/reverted draft and changed source invalidate exact persisted approval',async()=>{
   const i=seed(owner.id);await save(i,owner.token);const a=await approve(i,owner.token);await save(i,owner.token,'Thank you!',1);await save(i,owner.token,'Thank you.',2);let r=await edge('gmail-send',{approval_id:a.approval_id},owner.token);assert.equal(r.status,409);assert.equal(sendEvents(r).length,0);
   const b=await approve(i,owner.token);sql(`update messages set body_text='Changed context' where id='${i.message}';`);r=await edge('gmail-send',{approval_id:b.approval_id},owner.token);assert.equal(r.status,409);assert.equal(sendEvents(r).length,0);
+ });
+ await t.test('post-send/new-inbound conversation uses only receipt-backed own outbound context',async()=>{
+  const i=seed(owner.id);await save(i,owner.token);const a=await approve(i,owner.token),sent=await edge('gmail-send',{approval_id:a.approval_id},owner.token);assert.equal(sent.data.status,'SENT');
+  const outbound=JSON.parse(sql(`select row_to_json(x) from (select id,contact_id,provider_message_id from messages where thread_id='${i.thread}' and direction='outbound') x;`));assert.equal(outbound.contact_id,null);
+  const loaded=await edge('gmail-get-body',{message_id:outbound.id},owner.token);assert.equal(loaded.status,200,JSON.stringify(loaded));assert.equal(loaded.data.body,'Thank you.');
+  const next={...i,item:randomUUID(),draft:randomUUID(),message:randomUUID()};
+  sql(`insert into messages(id,user_id,thread_id,contact_id,direction,channel,provider,gmail_account_id,provider_message_id,from_identifier,to_identifiers,body_text,sent_at,subject) values('${next.message}','${owner.id}','${i.thread}','${i.contact}','inbound','email','gmail','${i.account}','source-${next.message}','${i.sender}',array['${i.from}'],'Thank you for the update.',clock_timestamp(),'Next question');insert into queue_items(id,user_id,thread_id,contact_id,business_id,channel,sender_identifier,title,last_inbound_message_id) values('${next.item}','${owner.id}','${i.thread}','${i.contact}','${i.business}','email','${i.sender}','Next question','${next.message}');`);
+  let state=await save(next,owner.token);assert.equal(state.evidenceRead.complete,true,JSON.stringify(state.evidenceRead));assert.equal(state.sources.find(m=>m.id===outbound.id).direction,'outbound');assert.equal(state.sources.find(m=>m.id===outbound.id).contactId,i.contact);await approve(next,owner.token);
+  const original=sql(`select row_to_json(x) from (select from_identifier,to_identifiers,cc_identifiers,headers from messages where id='${outbound.id}') x;`);
+  for(const assignment of ["to_identifiers=array['wrong@example.invalid']",`to_identifiers=array['${i.sender}','extra@example.invalid']`,"cc_identifiers=array['extra@example.invalid']",`headers='[{"name":"BCC","value":"extra@example.invalid"}]'`,"from_identifier='alias@example.invalid'"]){
+   sql(`update messages set ${assignment} where id='${outbound.id}';`);state=await review({operation:'SNAPSHOT',draft_id:next.draft},owner.token);assert.equal(state.evidenceRead.complete,false);assert.equal(state.evidenceRead.unresolvedOutboundCount,1);assert(!state.sources.some(m=>m.id===outbound.id));
+   sql(`update messages m set from_identifier=x.from_identifier,to_identifiers=x.to_identifiers,cc_identifiers=x.cc_identifiers,headers=x.headers from jsonb_populate_record(null::messages,${quote(original)}::jsonb) x where m.id='${outbound.id}';`);
+  }
+  sql(`update gmail_accounts set user_id='${other.id}' where id='${i.account}';`);const transferred=await edge('reply-review',{operation:'SNAPSHOT',draft_id:next.draft},owner.token);assert.equal(transferred.status,409);sql(`update gmail_accounts set user_id='${owner.id}' where id='${i.account}';`);
+  sql(`insert into messages(user_id,thread_id,direction,channel,provider,gmail_account_id,provider_message_id,from_identifier,to_identifiers,body_text,sent_at) values('${owner.id}','${i.thread}','outbound','email','gmail','${i.account}','unverified-legacy','${i.from}',array['${i.sender}'],'Legacy outbound',clock_timestamp());`);
+  state=await review({operation:'SNAPSHOT',draft_id:next.draft},owner.token);assert.equal(state.evidenceRead.complete,false);assert.equal(state.evidenceRead.unresolvedOutboundCount,1);assert.equal((await review({operation:'CHECK',draft_id:next.draft},owner.token)).check.status,'BLOCKED');
  });
  await t.test('source transaction precedes reservation, proven lock wait, stale approval cannot cross commit',async()=>{
   const i=seed(owner.id);await save(i,owner.token);const a=await approve(i,owner.token);const writer=await newSession('reply-writer'),reserver=await newSession('reply-reserver');

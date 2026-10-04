@@ -78,7 +78,7 @@ declare tid uuid; begin
  end if;
  return case when TG_OP='DELETE' then OLD else NEW end;
 end $$;
-create trigger mcc_reply_messages_invalidate before insert or update of body_text,contact_id,thread_id,gmail_account_id,twilio_number_id,provider,provider_message_id,channel,sent_at,from_identifier,direction,subject,rfc822_message_id,references_ids or delete on public.messages
+create trigger mcc_reply_messages_invalidate before insert or update of body_text,contact_id,thread_id,gmail_account_id,twilio_number_id,provider,provider_message_id,channel,sent_at,from_identifier,to_identifiers,cc_identifiers,headers,direction,subject,rfc822_message_id,references_ids or delete on public.messages
  for each row execute function public.mcc_reply_invalidate_source();
 
 create function public.mcc_reply_evidence_change() returns trigger language plpgsql security invoker set search_path='' as $$
@@ -88,7 +88,13 @@ declare c public.reply_context_state; begin
  perform 1 from public.threads where id=c.thread_id and user_id=c.user_id for update;
  if TG_OP='DELETE' then raise exception 'reply evidence deletion is not supported'; end if;
  if TG_OP='UPDATE' and (to_jsonb(NEW)-'revoked' is distinct from to_jsonb(OLD)-'revoked' or OLD.revoked or not NEW.revoked) then raise exception 'reply evidence content is immutable'; end if;
- if NEW.user_id<>c.user_id or not exists(select 1 from public.messages where id=NEW.message_id and user_id=c.user_id and contact_id=c.contact_id and thread_id=c.thread_id) then raise exception 'reply evidence source scope mismatch'; end if;
+ if NEW.user_id<>c.user_id then raise exception 'reply evidence source scope mismatch'; end if;
+ -- The same source projection defines eligibility for both snapshots and inserts.
+ -- Revocation must remain possible after a source is moved or invalidated.
+ if TG_OP='INSERT' and not exists(select 1 from jsonb_array_elements(public.mcc_reply_state(c.user_id,
+   (select id from public.reply_drafts where reply_context_id=c.id and user_id=c.user_id order by updated_at desc,id limit 1))->'sources') source
+   where source->>'id'=NEW.message_id::text and source->>'contactId'=c.contact_id::text)
+ then raise exception 'reply evidence source scope mismatch'; end if;
  update public.reply_context_state set evidence_revision=evidence_revision+1,updated_at=clock_timestamp() where id=c.id;
  return NEW;
 end $$;
@@ -126,19 +132,34 @@ begin
   if q.sender_identifier !~ '^\+[1-9][0-9]{6,14}$' or split_part(t.provider_thread_id,':',2)<>q.sender_identifier then raise exception 'reply recipient mismatch'; end if;
   transport=jsonb_build_object('from',n.phone_e164,'to',q.sender_identifier,'lastInboundAt',inbound.sent_at);
  end if;
- select coalesce(jsonb_agg(jsonb_build_object('id',m.id,'contactId',m.contact_id,'bodyMissing',m.body_text is null,'text',case when length(m.body_text) between 1 and 30000 then m.body_text else null end,'sentAt',m.sent_at,
-  'hash',encode(sha256(convert_to(jsonb_build_array(m.id,m.thread_id,m.contact_id,m.gmail_account_id,m.twilio_number_id,m.provider,m.provider_message_id,m.channel,m.body_text,m.sent_at,m.from_identifier,m.direction)::text,'UTF8')),'hex')) order by m.sent_at,m.id),'[]') into msgs
- from (select * from public.messages where thread_id=t.id and user_id=p_actor and contact_id=c.contact_id and channel=t.channel and ((t.channel='email' and gmail_account_id=t.gmail_account_id) or (t.channel in('sms','whatsapp') and twilio_number_id=t.twilio_number_id)) order by sent_at,id limit 201) m;
- complete=jsonb_array_length(msgs)<=200 and length(msgs::text)<=250000 and not exists(select 1 from public.messages where thread_id=t.id and user_id=p_actor and (contact_id is distinct from c.contact_id or channel is distinct from t.channel or (t.channel='email' and gmail_account_id is distinct from t.gmail_account_id) or (t.channel in('sms','whatsapp') and twilio_number_id is distinct from t.twilio_number_id))) and not exists(select 1 from jsonb_array_elements(msgs) m where m->>'text' is null);
+ select coalesce(jsonb_agg(jsonb_build_object('id',m.id,'contactId',c.contact_id,'direction',m.direction,'bodyMissing',m.body_text is null,'text',case when length(m.body_text) between 1 and 30000 then m.body_text else null end,'sentAt',m.sent_at,
+  'hash',encode(sha256(convert_to(jsonb_build_array(m.id,m.thread_id,m.contact_id,m.gmail_account_id,m.twilio_number_id,m.provider,m.provider_message_id,m.channel,m.body_text,m.sent_at,m.from_identifier,m.to_identifiers,m.cc_identifiers,m.headers,m.direction)::text,'UTF8')),'hex')) order by m.sent_at,m.id),'[]') into msgs
+ from (select * from public.messages where thread_id=t.id and user_id=p_actor and channel=t.channel and ((t.channel='email' and gmail_account_id=t.gmail_account_id) or (t.channel in('sms','whatsapp') and twilio_number_id=t.twilio_number_id))
+  and ((contact_id=c.contact_id and not (channel='email' and direction='outbound')) or (
+   channel='email' and direction='outbound' and provider='gmail' and (contact_id is null or contact_id=c.contact_id)
+   and lower(from_identifier)=lower(transport->>'from') and to_identifiers=array[lower(q.sender_identifier)] and cardinality(cc_identifiers)=0
+   and (headers='{}'::jsonb or jsonb_typeof(headers)='array')
+   and not exists(select 1 from jsonb_array_elements(case when jsonb_typeof(headers)='array' then headers else '[]'::jsonb end) h where lower(h->>'name')='bcc' and btrim(coalesce(h->>'value',''))<>'')
+   -- Old Gmail metadata does not prove a complete BCC envelope. Only our own
+   -- immutable successful single-recipient dispatch proves this null-contact binding.
+   and exists(select 1 from public.reply_dispatches receipt where receipt.user_id=p_actor and receipt.status='SENT'
+    and receipt.provider_id=messages.provider_message_id and receipt.payload->>'channel'='email'
+    and receipt.payload->>'threadId'=t.id::text and receipt.payload->>'fromAccountId'=t.gmail_account_id::text
+    and receipt.payload->'scope'->>'clientId'=c.contact_id::text and receipt.payload->'scope'->>'businessId'=c.business_id::text
+    and receipt.payload->'recipients'=jsonb_build_array(q.sender_identifier)
+    and lower(receipt.payload->'transport'->>'from')=lower(transport->>'from') and receipt.payload->'transport'->>'to'=q.sender_identifier
+    and not (receipt.payload ?| array['cc','bcc']) and not ((receipt.payload->'transport') ?| array['cc','bcc']))
+  )) order by sent_at,id limit 201) m;
+ complete=jsonb_array_length(msgs)<=200 and length(msgs::text)<=250000 and not exists(select 1 from public.messages scoped where scoped.thread_id=t.id and scoped.user_id=p_actor and not exists(select 1 from jsonb_array_elements(msgs) included where included->>'id'=scoped.id::text)) and not exists(select 1 from jsonb_array_elements(msgs) m where m->>'text' is null);
  select coalesce(jsonb_agg(jsonb_build_object('id',e.id,'scope',jsonb_build_object('userId',p_actor,'clientId',c.contact_id,'businessId',c.business_id,'contextId',c.id),
-  'kind',e.kind,'factKey',e.fact_key,'value',e.value,'source',jsonb_build_object('id',e.message_id,'revision',e.source_hash,'locator','/item/'||q.id||'?message='||e.message_id,'occurredAt',e.source_date,'excerpt',e.excerpt),
+  'kind',e.kind,'factKey',e.fact_key,'value',e.value,'source',jsonb_build_object('id',e.message_id,'revision',e.source_hash,'locator','/item/'||q.id||'?message='||e.message_id,'occurredAt',e.source_date,'excerpt',e.excerpt,'direction',(select direction from public.messages where id=e.message_id and user_id=p_actor)),
   'verification',jsonb_build_object('basis','human_reviewed','verifiedBy',e.verified_by,'verifiedAt',e.verified_at),
   'validUntil',e.valid_until,'revoked',e.revoked or not exists(select 1 from jsonb_array_elements(msgs) m where m->>'id'=e.message_id::text and m->>'hash'=e.source_hash and m->>'contactId'=c.contact_id::text),'supersedes',to_jsonb(e.supersedes)) order by e.id),'[]') into ev
  from public.reply_fact_evidence e where e.context_id=c.id and e.user_id=p_actor;
  envelope=jsonb_build_object('id',d.id,'revision',d.revision,'scope',jsonb_build_object('userId',p_actor,'clientId',c.contact_id,'businessId',c.business_id,'contextId',c.id),
   'queueItemId',q.id,'threadId',t.id,'channel',t.channel,'fromAccountId',coalesce(t.gmail_account_id,t.twilio_number_id),
   'recipients',jsonb_build_array(q.sender_identifier),'subject',coalesce(transport->>'subject',''),'text',d.draft_text,'updatedAt',d.updated_at,'transport',transport);
- return jsonb_build_object('draft',envelope,'claims',d.reply_claims,'evidence',ev,'sources',msgs,'evidenceRead',jsonb_build_object('complete',complete,'revision',c.evidence_revision::text));
+ return jsonb_build_object('draft',envelope,'claims',d.reply_claims,'evidence',ev,'sources',msgs,'evidenceRead',jsonb_build_object('complete',complete,'revision',c.evidence_revision::text,'unresolvedOutboundCount',(select count(*) from public.messages outbound where outbound.user_id=p_actor and outbound.thread_id=t.id and outbound.channel='email' and outbound.direction='outbound' and not exists(select 1 from jsonb_array_elements(msgs) included where included->>'id'=outbound.id::text))));
 end $$;
 
 create function public.mcc_reply_command(p_actor uuid,p_operation text,p_input jsonb) returns jsonb language plpgsql security invoker set search_path='' as $$

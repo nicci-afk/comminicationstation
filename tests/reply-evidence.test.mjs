@@ -250,3 +250,7 @@ test('a single broad claim cannot hide two detected prices',async()=>{
   const s=fixture();s.draft.text+=' Another charge is $9,999.';s.claims[0].start=0;s.claims[0].end=s.draft.text.length;s.claims[0].quote=s.draft.text;
   assert.ok((await codes(s)).includes('AMBIGUOUS_CLAIM_SPAN'));
 });
+
+test('outbound citation keeps its origin visible without changing human-review authority',async()=>{const s=fixture();s.evidence[0].source.direction='outbound';const r=await checkReply(s,NOW);assert.equal(r.claims[0].citations[0].direction,'outbound');assert.equal(s.evidence[0].verification.basis,'human_reviewed');assert.match(r.disclaimer,/not a guarantee/);});
+
+test('an outbound assertion cannot be promoted to supplier authority through source_system basis',async()=>{const s=fixture();s.evidence[0].source.direction='outbound';s.evidence[0].verification.basis='source_system';assert((await codes(s)).includes('UNVERIFIED_EVIDENCE'));});

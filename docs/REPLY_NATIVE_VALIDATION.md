@@ -44,3 +44,7 @@ The first native run installed both canonical schemas but stopped before applica
 The existing whole-app browser fixture also needed its copied `apps/web` directory to preserve repository depth for the shared checker import. Its disposable schema now includes the proposed reply DDL. Its assertions remain unchanged.
 
 The source-loading extension exercises the real body route, native cache write, context revision and UI recheck. Provider message IDs must match; cache writes compare the original owner/account/provider identity and body state and must return the selected row. Provider identity is also included in source hashing/invalidation. Native fixtures cover wrong-ID and raced-ID responses without contacting Gmail. The full-page responded check targets the state badge so the matching history event does not create a strict-selector ambiguity.
+
+## Receipt-backed lifecycle extension
+
+The body-loading head `140c04f0ec2f6d303c88ef7fe9922fe14744ef4a` passed all seven CI jobs. The subsequent reviewed source-scope extension admits canonical null-contact outbound Gmail messages only with a matching immutable SENT dispatch receipt, and tests post-send/new-inbound continuity, wrong recipient, extra CC/BCC, unverified alias and account transfer. Direction is visible; human review cannot be promoted to supplier authority. Missing legacy receipt/envelope data remains a visible full-context blocker. The extension requires a fresh exact-head CI receipt.

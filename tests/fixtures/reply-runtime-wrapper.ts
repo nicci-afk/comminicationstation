@@ -45,9 +45,14 @@ globalThis.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
   if (u.origin === 'https://gmail.googleapis.com' && u.pathname.startsWith('/gmail/v1/users/me/messages/')) {
     const sent=c.events.find(e=>e.kind==='synthetic-send')?.body as {raw:string;threadId:string}|undefined;
     const id=decodeURIComponent(u.pathname.split('/').at(-1)!);
-    if (u.searchParams.get('format')==='full' && id.startsWith('source-')) {
+    if (u.searchParams.get('format')==='full' && (id.startsWith('source-') || id.startsWith('fixture-email-'))) {
       c.events.push({kind:'synthetic-source-read',id});
-      return respond({id:c.mode==='source-mismatch'?'wrong-source':id,payload:{mimeType:'text/plain',body:{data:btoa('The price is $1250.')}}});
+      let text='The price is $1250.';
+      if(id.startsWith('fixture-email-')) {
+        const receipts=await realFetch(local.origin+'/rest/v1/reply_dispatches?provider_id=eq.'+encodeURIComponent(id)+'&select=payload', {headers:{apikey:Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,authorization:'Bearer '+Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!},redirect:'error'});
+        const rows=await receipts.json();if(!receipts.ok||rows.length!==1)throw Error('Synthetic sent-message fixture missing');text=rows[0].payload.text;
+      }
+      return respond({id:c.mode==='source-mismatch'?'wrong-source':id,payload:{mimeType:'text/plain',body:{data:btoa(text)}}});
     }
     if(!sent) throw Error('Unexpected Gmail body/metadata fetch');
     const raw=atob(sent.raw.replace(/-/g,'+').replace(/_/g,'/'));

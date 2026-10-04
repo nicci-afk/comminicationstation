@@ -60,6 +60,7 @@ export type Evidence = {
         locator: string;
         occurredAt: string;
         excerpt: string;
+        direction?: "inbound" | "outbound";
     };
     verification: {
         basis: "source_system" | "human_reviewed" | "model" | "text_match";
@@ -92,6 +93,7 @@ export type Citation = {
     verifiedAt: string;
     validUntil: string;
     excerpt: string;
+    direction?: "inbound" | "outbound";
 };
 export type Issue = {
     code: string;
@@ -248,7 +250,7 @@ export async function checkReply(snapshot: Snapshot, now: string): Promise<Check
             && [occurredAt, verifiedAt, validUntil].every(Number.isFinite)
             && occurredAt <= verifiedAt && verifiedAt <= nowMs && validUntil > verifiedAt;
     };
-    const authoritative = (e: Evidence) => ["source_system", "human_reviewed"].includes(e.verification.basis);
+    const authoritative = (e: Evidence) => e.source.direction === "outbound" ? e.verification.basis === "human_reviewed" : ["source_system", "human_reviewed"].includes(e.verification.basis);
     const replaced = new Set<string>();
     for (const e of scoped) {
         for (const priorId of e.supersedes) {
@@ -286,7 +288,7 @@ export async function checkReply(snapshot: Snapshot, now: string): Promise<Check
             if (metadataValid(e))
                 citations.push({ evidenceId: id, sourceId: e.source.id, sourceRevision: e.source.revision,
                     locator: e.source.locator, sourceDate: e.source.occurredAt, verifiedAt: e.verification.verifiedAt,
-                    validUntil: e.validUntil, excerpt: e.source.excerpt });
+                    validUntil: e.validUntil, excerpt: e.source.excerpt, direction: e.source.direction });
         }
         for (const e of current) {
             if (!metadataValid(e))
