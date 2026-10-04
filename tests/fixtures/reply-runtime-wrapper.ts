@@ -24,6 +24,12 @@ globalThis.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
       throw Error('Unexpected fixture config');
     }
     if (u.pathname === '/rest/v1/rpc/vault_read_secret' || u.pathname === '/rest/v1/rpc/get_user_secret') return respond('SYNTHETIC_NOT_A_CREDENTIAL');
+    if (c.mode === 'source-race' && u.pathname === '/rest/v1/messages' && request.method === 'PATCH') {
+      // A real native identity change between read and cache; the original CAS must affect zero rows.
+      const race = new URL(request.url);race.searchParams.delete('select');
+      const changed = await realFetch(race,{method:'PATCH',headers:request.headers,body:JSON.stringify({provider_message_id:'moved-source-'+crypto.randomUUID()}),redirect:'error'});
+      if(!changed.ok)throw Error('Synthetic native source race failed');
+    }
     if (c.mode === 'ingest-fails' && u.pathname.startsWith('/rest/v1/rpc/ingest_')) return respond({message:'synthetic ingestion failure'},500);
     return realFetch(request, {...init,redirect:'error'});
   }
@@ -39,6 +45,10 @@ globalThis.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
   if (u.origin === 'https://gmail.googleapis.com' && u.pathname.startsWith('/gmail/v1/users/me/messages/')) {
     const sent=c.events.find(e=>e.kind==='synthetic-send')?.body as {raw:string;threadId:string}|undefined;
     const id=decodeURIComponent(u.pathname.split('/').at(-1)!);
+    if (u.searchParams.get('format')==='full' && id.startsWith('source-')) {
+      c.events.push({kind:'synthetic-source-read',id});
+      return respond({id:c.mode==='source-mismatch'?'wrong-source':id,payload:{mimeType:'text/plain',body:{data:btoa('The price is $1250.')}}});
+    }
     if(!sent) throw Error('Unexpected Gmail body/metadata fetch');
     const raw=atob(sent.raw.replace(/-/g,'+').replace(/_/g,'/'));
     const headers=raw.split('\r\n\r\n')[0].split('\r\n').map(s=>({name:s.slice(0,s.indexOf(':')),value:s.slice(s.indexOf(':')+1).trim()}));
@@ -52,15 +62,15 @@ globalThis.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
   c.events.push({kind:'blocked-egress',origin:u.origin,path:u.pathname});
   throw Error('Non-local HTTP blocked by reply fixture');
 };
-const [{default:review},{default:gmail},{default:twilio}] = await Promise.all([
-  import('./app/reply-review.ts'),import('./app/gmail-send.ts'),import('./app/twilio-send.ts')
+const [{default:review},{default:gmail},{default:twilio},{default:body}] = await Promise.all([
+  import('./app/reply-review.ts'),import('./app/gmail-send.ts'),import('./app/twilio-send.ts'),import('./app/gmail-get-body.ts')
 ]);
-const routes:Record<string,(r:Request)=>Promise<Response>>={'reply-review':review,'gmail-send':gmail,'twilio-send':twilio};
+const routes:Record<string,(r:Request)=>Promise<Response>>={'reply-review':review,'gmail-send':gmail,'twilio-send':twilio,'gmail-get-body':body};
 Deno.serve(async req=>{
   const handler=routes[new URL(req.url).pathname.split('/').at(-1)!];
   if(!handler)return new Response('fixture ready',{status:404,headers:{'x-mcc-reply-runtime':'true'}});
   const mode=req.headers.get('x-fixture-mode')??'ok';
-  if(!['ok','timeout','malformed','ingest-fails'].includes(mode))return new Response('invalid fixture mode',{status:400});
+  if(!['ok','timeout','malformed','ingest-fails','source-mismatch','source-race'].includes(mode))return new Response('invalid fixture mode',{status:400});
   return context.run({mode,events:[]},async()=>{
     const response=await handler(req);if(req.method==='OPTIONS')return response;
     const data=await response.json();

@@ -28,6 +28,16 @@ await test('native reply trust boundary, dispatch, and interleavings',async t=>{
   const c=await review({operation:'CHECK',draft_id:i.draft,result:{status:'SOURCE_SUPPORTED_REQUIRES_REVIEW'},evidence:[{basis:'source_system'}]},owner.token);assert.equal(c.check.status,'BLOCKED');
   const r=await edge('reply-review',{operation:'APPROVE',check_id:c.check_id,snapshot_key:c.check.snapshotKey,review_key:c.check.reviewKey,coverage_reviewed:true},owner.token);assert.equal(r.status,409);
  });
+ await t.test('explicit native body load verifies source identity, caches under CAS and invalidates context',async()=>{
+  const i=seed(owner.id);sql(`update messages set body_text=null where id='${i.message}';`);const before=await save(i,owner.token);
+  assert.equal(before.evidenceRead.complete,false);assert.equal((await review({operation:'CHECK',draft_id:i.draft},owner.token)).check.status,'BLOCKED');
+  const denied=await edge('gmail-get-body',{message_id:i.message},other.token);assert.equal(denied.status,404);assert(!denied.data.__fixture_events.some(e=>e.kind==='synthetic-source-read'||e.kind==='synthetic-oauth'));
+  const loaded=await edge('gmail-get-body',{message_id:i.message},owner.token);assert.equal(loaded.status,200,JSON.stringify(loaded));assert.equal(loaded.data.body,'The price is $1250.');assert.equal(loaded.data.__fixture_events.filter(e=>e.kind==='synthetic-source-read').length,1);
+  const after=await review({operation:'SNAPSHOT',draft_id:i.draft},owner.token);assert.equal(after.evidenceRead.complete,true);assert(Number(after.evidenceRead.revision)>Number(before.evidenceRead.revision));await approve(i,owner.token);
+ });
+ for(const mode of ['source-mismatch','source-race'])await t.test(`native ${mode} cannot become cached evidence`,async()=>{
+  const i=seed(owner.id);sql(`update messages set body_text=null where id='${i.message}';`);await save(i,owner.token);const r=await edge('gmail-get-body',{message_id:i.message},owner.token,mode);assert.equal(r.status,409,JSON.stringify(r));assert.equal(sql(`select body_text is null from messages where id='${i.message}';`),'t');assert.equal((await review({operation:'CHECK',draft_id:i.draft},owner.token)).check.status,'BLOCKED');
+ });
  await t.test('current source excerpt, explicit review, and exact claim support a native price check',async()=>{
   const i=seed(owner.id);const quoteText='$1250';let state=await save(i,owner.token,'It costs $1250.',0,[{id:'p',kind:'price',start:9,end:14,quote:quoteText,factKey:'quote-price',value:'USD:125000',evidenceIds:[]}]);
   const source=state.sources[0];const e=await review({operation:'EVIDENCE',draft_id:i.draft,revision:1,message_id:source.id,source_hash:source.hash,kind:'price',fact_key:'quote-price',value:'USD:125000',start:source.text.indexOf(quoteText),end:source.text.indexOf(quoteText)+quoteText.length,excerpt:quoteText,valid_until:new Date(Date.now()+3600000).toISOString(),reviewed:true},owner.token);

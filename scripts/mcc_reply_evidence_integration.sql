@@ -78,7 +78,7 @@ declare tid uuid; begin
  end if;
  return case when TG_OP='DELETE' then OLD else NEW end;
 end $$;
-create trigger mcc_reply_messages_invalidate before insert or update of body_text,contact_id,thread_id,gmail_account_id,twilio_number_id,channel,sent_at,from_identifier,direction,subject,rfc822_message_id,references_ids or delete on public.messages
+create trigger mcc_reply_messages_invalidate before insert or update of body_text,contact_id,thread_id,gmail_account_id,twilio_number_id,provider,provider_message_id,channel,sent_at,from_identifier,direction,subject,rfc822_message_id,references_ids or delete on public.messages
  for each row execute function public.mcc_reply_invalidate_source();
 
 create function public.mcc_reply_evidence_change() returns trigger language plpgsql security invoker set search_path='' as $$
@@ -127,7 +127,7 @@ begin
   transport=jsonb_build_object('from',n.phone_e164,'to',q.sender_identifier,'lastInboundAt',inbound.sent_at);
  end if;
  select coalesce(jsonb_agg(jsonb_build_object('id',m.id,'contactId',m.contact_id,'bodyMissing',m.body_text is null,'text',case when length(m.body_text) between 1 and 30000 then m.body_text else null end,'sentAt',m.sent_at,
-  'hash',encode(sha256(convert_to(jsonb_build_array(m.id,m.thread_id,m.contact_id,m.gmail_account_id,m.twilio_number_id,m.channel,m.body_text,m.sent_at,m.from_identifier,m.direction)::text,'UTF8')),'hex')) order by m.sent_at,m.id),'[]') into msgs
+  'hash',encode(sha256(convert_to(jsonb_build_array(m.id,m.thread_id,m.contact_id,m.gmail_account_id,m.twilio_number_id,m.provider,m.provider_message_id,m.channel,m.body_text,m.sent_at,m.from_identifier,m.direction)::text,'UTF8')),'hex')) order by m.sent_at,m.id),'[]') into msgs
  from (select * from public.messages where thread_id=t.id and user_id=p_actor and contact_id=c.contact_id and channel=t.channel and ((t.channel='email' and gmail_account_id=t.gmail_account_id) or (t.channel in('sms','whatsapp') and twilio_number_id=t.twilio_number_id)) order by sent_at,id limit 201) m;
  complete=jsonb_array_length(msgs)<=200 and length(msgs::text)<=250000 and not exists(select 1 from public.messages where thread_id=t.id and user_id=p_actor and (contact_id is distinct from c.contact_id or channel is distinct from t.channel or (t.channel='email' and gmail_account_id is distinct from t.gmail_account_id) or (t.channel in('sms','whatsapp') and twilio_number_id is distinct from t.twilio_number_id))) and not exists(select 1 from jsonb_array_elements(msgs) m where m->>'text' is null);
  select coalesce(jsonb_agg(jsonb_build_object('id',e.id,'scope',jsonb_build_object('userId',p_actor,'clientId',c.contact_id,'businessId',c.business_id,'contextId',c.id),

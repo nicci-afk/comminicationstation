@@ -6,7 +6,7 @@ create table contacts(id uuid primary key,user_id uuid not null);
 create table gmail_accounts(id uuid primary key,user_id uuid not null,email_address text,status text,has_send_scope boolean,refresh_token_secret_id uuid);
 create table twilio_numbers(id uuid primary key,user_id uuid not null,phone_e164 text,status text);
 create table threads(id uuid primary key,user_id uuid not null,channel text,gmail_account_id uuid,twilio_number_id uuid,provider_thread_id text);
-create table messages(id uuid primary key,user_id uuid not null,thread_id uuid not null,contact_id uuid,direction text,channel text,from_identifier text,body_text text,sent_at timestamptz,subject text,rfc822_message_id text,references_ids text[] default '{}',gmail_account_id uuid,twilio_number_id uuid);
+create table messages(id uuid primary key,user_id uuid not null,thread_id uuid not null,contact_id uuid,direction text,channel text,from_identifier text,body_text text,sent_at timestamptz,subject text,rfc822_message_id text,references_ids text[] default '{}',gmail_account_id uuid,twilio_number_id uuid,provider text default 'gmail',provider_message_id text default gen_random_uuid()::text);
 create table queue_items(id uuid primary key,user_id uuid not null,thread_id uuid,contact_id uuid,business_id uuid,channel text,sender_identifier text,title text);
 create table reply_drafts(id uuid primary key default gen_random_uuid(),user_id uuid not null,queue_item_id uuid not null,strategy_id uuid,blueprint_name text default '',draft_text text not null,confidence text not null,cost_usd numeric default 0,created_at timestamptz default now());
 grant usage on schema public,auth to service_role,authenticated,anon;

@@ -77,6 +77,9 @@ export default async function handler(req: Request): Promise<Response> {
       token,
       `/users/me/messages/${encodeURIComponent(msg.provider_message_id)}?format=full`,
     );
+    if (full.id !== msg.provider_message_id) {
+      throw new HttpError(409, "source body identity changed; refresh before reviewing");
+    }
     const payload = full.payload as Part | undefined;
     let text = extractText(payload, "text/plain");
     if (!text) {
@@ -85,8 +88,12 @@ export default async function handler(req: Request): Promise<Response> {
     }
     text = (text ?? "").slice(0, 50_000);
 
-    const { error: saveError } = await db.from("messages").update({ body_text: text }).eq("id", msg.id).eq("user_id", userId);
-    if (saveError) throw new HttpError(409, "source body could not be cached; refresh before reviewing");
+    let write = db.from("messages").update({ body_text: text }).eq("id", msg.id)
+      .eq("user_id", userId).eq("gmail_account_id", msg.gmail_account_id)
+      .eq("provider_message_id", msg.provider_message_id).eq("provider", "gmail");
+    write = msg.body_text === null ? write.is("body_text", null) : write.eq("body_text", msg.body_text);
+    const { data: saved, error: saveError } = await write.select("id").maybeSingle();
+    if (saveError || saved?.id !== msg.id) throw new HttpError(409, "source body could not be cached; refresh before reviewing");
     return json({ body: text });
   } catch (e) {
     const status = e instanceof HttpError ? e.status : 500;

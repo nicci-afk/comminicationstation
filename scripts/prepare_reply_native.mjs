@@ -2,7 +2,7 @@ import fs from 'node:fs';import path from 'node:path';import assert from 'node:a
 const root=path.resolve(path.dirname(new URL(import.meta.url).pathname),'..');
 const [local,evidence,variant='main',cutover]=process.argv.slice(2);
 assert(local&&evidence&&['main','cutover'].includes(variant));
-const files=['reply-review.ts','gmail-send.ts','twilio-send.ts','_shared/reply-review.ts','_shared/reply-evidence.ts','_shared/util.ts','_shared/gmail.ts'];
+const files=['reply-review.ts','gmail-send.ts','twilio-send.ts','gmail-get-body.ts','_shared/reply-review.ts','_shared/reply-evidence.ts','_shared/util.ts','_shared/gmail.ts'];
 const digest=s=>createHash('sha256').update(s).digest('hex');
 const manifest={variant,applicationFiles:[],wrapper:[],limitations:['Synthetic OAuth/Gmail/Twilio only; no live providers or models','Canonical repository schema subset, retained email ingest, and local Supabase Auth/PostgREST/Edge','Browser exercises exact ReplyReview and ItemDetail with local-only transport; generation alone is synthetic']};
 const wrapper=fs.readFileSync(path.join(root,'tests/fixtures/reply-runtime-wrapper.ts'),'utf8');
