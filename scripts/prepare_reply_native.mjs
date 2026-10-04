@@ -4,7 +4,7 @@ const [local,evidence,variant='main',cutover]=process.argv.slice(2);
 assert(local&&evidence&&['main','cutover'].includes(variant));
 const files=['reply-review.ts','gmail-send.ts','twilio-send.ts','_shared/reply-review.ts','_shared/reply-evidence.ts','_shared/util.ts','_shared/gmail.ts'];
 const digest=s=>createHash('sha256').update(s).digest('hex');
-const manifest={variant,applicationFiles:[],wrapper:[],limitations:['Synthetic OAuth/Gmail/Twilio only; no live providers or models','Canonical repository schema subset, retained email ingest, and local Supabase Auth/PostgREST/Edge','Browser uses the exact ReplyReview component with a local-only transport adapter, not the entire ItemDetail page']};
+const manifest={variant,applicationFiles:[],wrapper:[],limitations:['Synthetic OAuth/Gmail/Twilio only; no live providers or models','Canonical repository schema subset, retained email ingest, and local Supabase Auth/PostgREST/Edge','Browser exercises exact ReplyReview and ItemDetail with local-only transport; generation alone is synthetic']};
 const wrapper=fs.readFileSync(path.join(root,'tests/fixtures/reply-runtime-wrapper.ts'),'utf8');
 for(const enabled of [true,false]) {
   const dir=path.join(local,'supabase/functions',enabled?'reply-runtime':'reply-disabled');fs.mkdirSync(path.join(dir,'app/_shared'),{recursive:true});

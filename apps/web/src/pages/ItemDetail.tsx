@@ -277,6 +277,8 @@ export default function ItemDetail() {
           <ReplyReview key={item.id} itemId={item.id} channel={item.channel} initialDraft={draft?.itemId===item.id?draft:null} onSent={() => {
             qc.invalidateQueries({queryKey:["messages",item.thread_id]});
             qc.invalidateQueries({queryKey:["queue"]});
+            qc.invalidateQueries({queryKey:["item",item.id]});
+            qc.invalidateQueries({queryKey:["item-events",item.id]});
           }}/>
         ) : <p className="mt-4 text-sm text-slate-500">Direct sending is unavailable for this account. Review its connection settings before replying here.</p>}
 

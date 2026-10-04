@@ -4,7 +4,12 @@ const realFetch = globalThis.fetch.bind(globalThis);
 const context = new AsyncLocalStorage<{mode:string;events:Record<string,unknown>[]} >();
 const local = new URL(Deno.env.get("SUPABASE_URL")!);
 if (!['kong','127.0.0.1','localhost','host.docker.internal'].includes(local.hostname) || local.protocol !== 'http:') throw Error('Local fixture backend required');
-Deno.env.set('MCC_REPLY_DISPATCH_ENABLED', '__ENABLED__');
+// Enabled tests use the real CLI env-file. The separate disabled fixture
+// simulates an absent flag through a labeled read boundary; Edge forbids env.set.
+if ('__ENABLED__' !== 'true') {
+  const nativeGet = Deno.env.get.bind(Deno.env);
+  Deno.env.get = (key: string) => key === 'MCC_REPLY_DISPATCH_ENABLED' ? undefined : nativeGet(key);
+}
 globalThis.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
   const request = input instanceof Request ? input : new Request(input, init);
   const u = new URL(request.url), c = context.getStore();

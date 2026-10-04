@@ -55,9 +55,11 @@ if [[ "$VARIANT" == cutover ]]; then
 fi
 docker exec "$REPLY_DB_CONTAINER" psql -U postgres -d postgres -v ON_ERROR_STOP=1 -c "notify pgrst,'reload schema';" >>"$EVIDENCE/schema.log"
 docker ps --format '{{.Names}} {{.Image}}' | grep -F "$PROJECT" >"$EVIDENCE/runtime-containers.log"
-(cd "$LOCAL" && exec supabase functions serve --no-verify-jwt) >"$EVIDENCE/functions.log" 2>&1 &
+printf 'MCC_REPLY_DISPATCH_ENABLED=true\n' >"$WORK/functions.env"
+(cd "$LOCAL" && exec supabase functions serve --env-file "$WORK/functions.env" --no-verify-jwt) >"$EVIDENCE/functions.log" 2>&1 &
 SERVE_PID=$!
 cd "$ROOT"
 node --import tsx --test tests/reply-native.test.mjs 2>&1 | tee "$EVIDENCE/native-tests.tap"
 node tests/reply-browser.test.mjs 2>&1 | tee "$EVIDENCE/browser-tests.log"
+node tests/reply-item-detail-browser.test.mjs 2>&1 | tee "$EVIDENCE/item-detail-browser-tests.log"
 echo 'PASS: native reply validation and Chromium evidence; synthetic providers only.'
