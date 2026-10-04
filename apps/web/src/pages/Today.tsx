@@ -1,7 +1,8 @@
 // One queue page at a time. Counts describe the last verified queue read;
 // handled counts describe only confirmed actions during this visit.
 import { useEffect, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
+import { explicitFollowUpUtc, followUpLabel } from "../lib/queueFollowUp";
 import { Check, ChevronDown, ChevronUp, Clock, ExternalLink, X } from "lucide-react";
 import { TODAY_PAGE_SIZE, useBusinesses, useItemAction, useTodayQueue } from "../lib/hooks";
 import type { QueueItem } from "../lib/types";
@@ -24,6 +25,7 @@ export default function Today() {
   const [receipt, setReceipt] = useState<{ before: QueueItem; saved: QueueItem } | null>(null);
   const [message, setMessage] = useState("");
   const [saveError, setSaveError] = useState("");
+  const [followUp, setFollowUp] = useState<{ item: QueueItem; value: string } | null>(null);
   const busy = useRef(false);
   const resolvedPage = queue.data?.page ?? page;
   const list = queue.data?.items ?? [];
@@ -42,13 +44,14 @@ export default function Today() {
     }
   }, [queue.data, queue.error, queue.isFetching, page, resolvedPage]);
 
-  async function handle(patch: Partial<QueueItem>) {
-    if (!current || !canAct || busy.current) return;
+  async function handle(patch: Partial<QueueItem>, target = current) {
+    if (!target || !canAct || busy.current) return;
     busy.current = true;
     setSaveError(""); setMessage("");
     try {
-      const saved = await action.mutateAsync({ id: current.id, patch, expected: expectedState(current) });
-      setReceipt({ before: current, saved });
+      const saved = await action.mutateAsync({ id: target.id, patch, expected: expectedState(target) });
+      setReceipt({ before: target, saved });
+      setFollowUp(null);
       setDoneCount(count => count + 1);
       setCursor(0);
     } catch {
@@ -72,9 +75,22 @@ export default function Today() {
     } finally { busy.current = false; }
   }
 
+  async function scheduleFollowUp() {
+    if (!followUp || busy.current || !canAct) return;
+    const date = explicitFollowUpUtc(followUp.value);
+    if (!date) { setSaveError("Choose an exact future follow-up date and time in UTC."); return; }
+    // Use the row seen when the form was opened, not a newly selected card.
+    await handle({ state: "awaiting_reply", follow_up_at: date, snoozed_until: null }, followUp.item);
+  }
+
+  function changeCursor(next: number) {
+    if (busy.current) return;
+    setFollowUp(null); setCursor(next);
+  }
+
   function changePage(next: number) {
     if (busy.current) return;
-    setPage(next); setCursor(0);
+    setFollowUp(null); setPage(next); setCursor(0);
   }
 
   useEffect(() => {
@@ -82,7 +98,7 @@ export default function Today() {
       const target = e.target as HTMLElement;
       if (e.repeat || e.altKey || e.ctrlKey || e.metaKey || e.shiftKey ||
         target?.closest("input, textarea, select, button, a, [contenteditable='true']")) return;
-      if (busy.current) return;
+      if (busy.current || followUp) return;
       if (e.key === "j") setCursor(Math.min(index + 1, Math.max(0, list.length - 1)));
       if (e.key === "k") setCursor(Math.max(index - 1, 0));
       if (e.key === "Enter" && current) nav(`/item/${current.id}`);
@@ -121,7 +137,8 @@ export default function Today() {
       {action.isPending && <p role="status" className="mt-3 text-sm">Saving change…</p>}
       {saveError && <p role="alert" className="mt-3 text-sm text-red-700 dark:text-red-400">{saveError}</p>}
       {receipt && <div role="status" className="mt-3 rounded-lg bg-emerald-50 dark:bg-emerald-950 p-3 text-sm break-words">
-        Saved: {receipt.before.title || "(no subject)"} · {receipt.saved.state === "snoozed" ? "snoozed for 4 hours" : receipt.saved.state}.
+        Saved: {receipt.before.title || "(no subject)"} · {receipt.saved.state === "snoozed" ? "snoozed for 4 hours" : receipt.saved.state === "awaiting_reply" ? "follow-up remains open" : receipt.saved.state}.
+        {receipt.saved.state === "awaiting_reply" && <> {followUpLabel(receipt.saved.follow_up_at)}. <Link to="/queue?view=awaiting" className="underline">View open follow-ups</Link></>}
         {" "}<button type="button" onClick={event => { if (event.detail < 2) void undo(); }} disabled={!canAct} className="underline disabled:opacity-50">Undo last change</button>
       </div>}
       {message && <p role="status" className="mt-3 text-sm">{message}</p>}
@@ -130,6 +147,7 @@ export default function Today() {
         <div className="mt-12 text-center">
           <h2 className="text-xl font-semibold">Queue clear</h2>
           <p className="text-slate-500 dark:text-slate-400 mt-1">No items needed attention at the last check.</p>
+          <Link to="/queue?view=awaiting" className="inline-block mt-3 text-sm underline">View scheduled follow-ups</Link>
         </div>
       ) : queue.data && <>
         <p className="mt-4 text-sm text-slate-500 dark:text-slate-400">
@@ -147,25 +165,40 @@ export default function Today() {
               className="flex items-center justify-center gap-1 bg-indigo-600 text-white rounded-xl py-3 text-sm font-medium disabled:opacity-50">
               <ExternalLink className="w-4 h-4" /> Open & reply
             </button>
-            <button type="button" onClick={() => void handle({ state: "responded" })} disabled={!canAct}
+            <button type="button" onClick={() => void handle({ state: "responded" })} disabled={!canAct || !!followUp}
               className="flex items-center justify-center gap-1 bg-emerald-50 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-400 rounded-xl py-3 text-sm font-medium disabled:opacity-50">
               <Check className="w-4 h-4" /> Responded
             </button>
-            <button type="button" onClick={() => void handle({ state: "snoozed", snoozed_until: new Date(Date.now() + 4 * 3600_000).toISOString() })} disabled={!canAct}
+            <button type="button" onClick={() => void handle({ state: "snoozed", snoozed_until: new Date(Date.now() + 4 * 3600_000).toISOString() })} disabled={!canAct || !!followUp}
               className="flex items-center justify-center gap-1 bg-sky-50 dark:bg-sky-950 text-sky-700 dark:text-sky-400 rounded-xl py-3 text-sm font-medium disabled:opacity-50">
               <Clock className="w-4 h-4" /> Snooze 4h
             </button>
-            <button type="button" onClick={() => void handle({ state: "dismissed" })} disabled={!canAct}
+            <button type="button" onClick={() => void handle({ state: "dismissed" })} disabled={!canAct || !!followUp}
               className="flex items-center justify-center gap-1 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 rounded-xl py-3 text-sm font-medium disabled:opacity-50">
               <X className="w-4 h-4" /> Dismiss
             </button>
           </div>
+          <button type="button" onClick={() => { setSaveError(""); setFollowUp({ item: current, value: "" }); }} disabled={!canAct || !!followUp}
+            className="mt-3 text-sm underline disabled:opacity-50">Set follow-up date</button>
+          <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">Responded records a reply, not completion of the request. Conversational replies keep the existing four-day follow-up policy unless a date is already recorded.</p>
         </div>}
+        {followUp && <form onSubmit={event => { event.preventDefault(); void scheduleFollowUp(); }} className="mt-4 rounded-xl border border-sky-300 p-4">
+          <h2 className="font-medium">Follow up: {followUp.item.title || "(no subject)"}</h2>
+          <p className="mt-1 text-sm">This is your next check-in, not a client deadline. No message is sent.</p>
+          <label htmlFor="queue-follow-up" className="block mt-3 text-sm">Follow-up date and time (UTC)</label>
+          <input id="queue-follow-up" type="datetime-local" required value={followUp.value}
+            onChange={event => setFollowUp({ ...followUp, value: event.target.value })} disabled={action.isPending}
+            className="mt-1 w-full rounded-lg border p-2 bg-white dark:bg-slate-900" />
+          <div className="mt-3 flex gap-4">
+            <button type="submit" disabled={!canAct || !followUp.value} className="underline disabled:opacity-50">Save follow-up</button>
+            <button type="button" onClick={() => { setFollowUp(null); setSaveError(""); }} disabled={action.isPending} className="underline disabled:opacity-50">Cancel follow-up</button>
+          </div>
+        </form>}
         {list.length > 0 && <>
           <div className="mt-6 flex items-center gap-2 text-sm text-slate-500 dark:text-slate-400">
             <span>On this page</span>
-            <button type="button" aria-label="Previous item" onClick={() => setCursor(Math.max(index - 1, 0))} disabled={index === 0 || action.isPending} className="p-2 disabled:opacity-50"><ChevronUp className="w-4 h-4" /></button>
-            <button type="button" aria-label="Next item" onClick={() => setCursor(Math.min(index + 1, list.length - 1))} disabled={index >= list.length - 1 || action.isPending} className="p-2 disabled:opacity-50"><ChevronDown className="w-4 h-4" /></button>
+            <button type="button" aria-label="Previous item" onClick={() => changeCursor(Math.max(index - 1, 0))} disabled={index === 0 || action.isPending} className="p-2 disabled:opacity-50"><ChevronUp className="w-4 h-4" /></button>
+            <button type="button" aria-label="Next item" onClick={() => changeCursor(Math.min(index + 1, list.length - 1))} disabled={index >= list.length - 1 || action.isPending} className="p-2 disabled:opacity-50"><ChevronDown className="w-4 h-4" /></button>
           </div>
           <div className="mt-2 space-y-2 opacity-80">{list.map((item, i) => i === index ? null : <ItemCard key={item.id} item={item} businesses={businessError ? [] : businesses} />)}</div>
         </>}

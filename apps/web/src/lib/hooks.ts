@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, supabase } from "./supabase";
+import { queueActionConfirmed } from "./queueFollowUp";
 import type {
   Business,
   Contact,
@@ -40,22 +41,34 @@ export function useBusinesses() {
   });
 }
 
-export function useQueue(states: string[], businessId?: string | null) {
+export function useQueue(states: string[], businessId?: string | null, page = 0) {
+  const qc = useQueryClient();
   return useQuery({
-    queryKey: ["queue", states, businessId ?? "all"],
-    queryFn: async (): Promise<QueueItem[]> => {
-      let q = supabase
-        .from("queue_items")
-        .select("*")
-        .in("state", states)
-        .order("priority", { ascending: false })
-        .order("created_at", { ascending: false })
-        .limit(200);
-      if (businessId) q = q.eq("business_id", businessId);
-      const { data, error } = await q;
-      if (error) throw error;
-      return data ?? [];
+    queryKey: ["queue", states, businessId ?? "all", page],
+    queryFn: async ({ signal }): Promise<{ items: QueueItem[]; total: number; page: number }> => {
+      async function readPage(index: number) {
+        let q = supabase.from("queue_items").select("*", { count: "exact" }).in("state", states);
+        if (businessId) q = q.eq("business_id", businessId);
+        // Open follow-ups are date-first; undated items remain reachable.
+        if (states.length === 1 && states[0] === "awaiting_reply") q = q.order("follow_up_at", { ascending: true, nullsFirst: false });
+        const { data, error, count } = await q.order("priority", { ascending: false })
+          .order("created_at", { ascending: false }).order("id", { ascending: true })
+          .range(index * TODAY_PAGE_SIZE, (index + 1) * TODAY_PAGE_SIZE - 1).abortSignal(signal);
+        if (error) throw error;
+        if (!Array.isArray(data) || count === null || count < 0 || data.length !== Math.max(0, Math.min(TODAY_PAGE_SIZE, count - index * TODAY_PAGE_SIZE))) {
+          throw new Error("Queue response was incomplete. Refresh to verify it.");
+        }
+        return { items: data as QueueItem[], total: count, page: index };
+      }
+      try { return await readPage(page); }
+      catch (error) {
+        if (page === 0 || (error as { code?: string }).code !== "PGRST103") throw error;
+        const first = await readPage(0);
+        qc.setQueryData(["queue", states, businessId ?? "all", 0], first);
+        return first;
+      }
     },
+    staleTime: query => query.state.data?.page === page ? 60_000 : 0,
   });
 }
 
@@ -198,11 +211,7 @@ export function useItemAction() {
       }
       const { data, error } = await query.select("*").single();
       if (error) throw error;
-      if (!data || data.id !== args.id || Object.entries(args.patch).some(([key, value]) =>
-        // Timestamp strings can have equivalent timezone representations.
-        key.endsWith("_at") || key === "snoozed_until"
-          ? value === null ? data[key] !== null : Date.parse(String(data[key])) !== Date.parse(String(value))
-          : data[key] !== value)) throw new Error("Save was not confirmed. Refresh before retrying.");
+      if (!queueActionConfirmed(args.id, args.patch, data)) throw new Error("Save was not confirmed. Refresh before retrying.");
       return data as QueueItem;
     },
     onSettled: (_data, _error, { id }) => Promise.all([

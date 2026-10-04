@@ -2,6 +2,7 @@ import { Link } from "react-router-dom";
 import { AlertTriangle, Mail, MessageSquare, Phone, Star } from "lucide-react";
 import type { Business, QueueItem } from "../lib/types";
 import { fmtWhen } from "../lib/hooks";
+import { followUpLabel } from "../lib/queueFollowUp";
 
 const CHANNEL_ICON = { email: Mail, sms: Phone, whatsapp: MessageSquare } as const;
 
@@ -73,8 +74,10 @@ export default function ItemCard({
       </div>
       <div className="mt-1 text-sm text-slate-700 dark:text-slate-200 truncate">{item.title || "(no subject)"}</div>
       <div className="text-xs text-slate-400 dark:text-slate-500 truncate">{item.preview}</div>
+      {item.state === "responded" && <div className="mt-1 text-xs text-slate-500 dark:text-slate-400">Reply recorded</div>}
+      {item.state === "dismissed" && <div className="mt-1 text-xs text-slate-500 dark:text-slate-400">Dismissed from queue</div>}
       {item.state === "awaiting_reply" && (
-        <div className="mt-1 text-xs text-sky-600 dark:text-sky-400">⏳ awaiting their reply · nudge resurfaces {fmtWhen(item.follow_up_at)}</div>
+        <div className="mt-1 text-xs text-sky-600 dark:text-sky-400">⏳ Open follow-up · {followUpLabel(item.follow_up_at)}</div>
       )}
     </Link>
   );

@@ -22,7 +22,10 @@ globalThis.fetch = async (input, init) => {
     const matches = row && ['state', 'updated_at', 'snoozed_until', 'follow_up_at', 'last_inbound_message_id', 'message_count'].every(k => url.searchParams.get(k) === (row[k] === null ? 'is.null' : `eq.${row[k]}`));
     if (noRow || !matches) return json({ message: 'No matching row', code: 'PGRST116' }, 406);
     Object.assign(row, patch, { updated_at: `2026-10-02T12:00:${String(++serial).padStart(2, '0')}Z` });
-    if (row.state === 'responded' && !row.follow_up_at) row.follow_up_at = '2026-10-06T12:00:00Z';
+    if (row.state === 'responded' && ['needs_reply','urgent','scheduling'].includes(row.category)) {
+      row.state = 'awaiting_reply';
+      row.follow_up_at ??= '2026-10-06T12:00:00Z';
+    }
     return json(row);
   }
   reads.push(url);
@@ -90,7 +93,7 @@ reset([make(1)]); mount(); await fresh(); rows[0] = { ...rows[0], last_inbound_m
 reset([make(1), make(2)]); mount(); await fresh(); failWrite = true; fireEvent.click(screen.getByRole('button', { name: 'Responded', exact: true })); await screen.findByText(/Change unconfirmed/); assertCount(0); assert.equal(rows[0].state, 'needs_attention'); assert.equal(screen.queryByText(/Saved:/), null);
 failWrite = false; noRow = true; fireEvent.click(screen.getByRole('button', { name: 'Dismiss', exact: true })); await waitFor(() => assert.equal(writes.length, 2)); await waitFor(() => assert.ok(!screen.queryByText('Saving change…'))); assertCount(0);
 noRow = false; holdWrite = new Promise(r => release = r); const respond = screen.getByRole('button', { name: 'Responded', exact: true }); fireEvent.click(respond); fireEvent.click(respond); fireEvent.keyDown(document.body, { key: 'r' }); fireEvent.keyDown(document.body, { key: 'r', repeat: true }); await waitFor(() => assert.equal(writes.length, 3)); assertCount(0);
-await React.act(async () => { holdWrite = null; release(); }); await screen.findByText('1 handled this visit'); assert.ok(screen.getByText(/Saved: Queue action 1/)); assert.equal(rows[0].state, 'responded'); fireEvent.click(screen.getByRole('button', { name: 'Responded', exact: true }), { detail: 2 }); assert.equal(writes.length, 3, 'second click must not affect the newly revealed item');
+await React.act(async () => { holdWrite = null; release(); }); await screen.findByText('1 handled this visit'); assert.ok(screen.getByText(/Saved: Queue action 1/)); assert.equal(rows[0].state, 'awaiting_reply'); fireEvent.click(screen.getByRole('button', { name: 'Responded', exact: true }), { detail: 2 }); assert.equal(writes.length, 3, 'second click must not affect the newly revealed item');
 // Undo restores the fields this action affected, including the trigger-created follow-up.
 fireEvent.click(screen.getByRole('button', { name: 'Undo last change' })); await screen.findByText('Last change undone.'); assertCount(0); assert.equal(rows[0].state, 'needs_attention'); assert.equal(rows[0].follow_up_at, null);
 // A newer transition blocks Undo without erasing its receipt or counting success.
@@ -100,6 +103,39 @@ reset([make(1)]); mount(); await fresh(); failRead = true; fireEvent.click(scree
 // Keyboard ignores controls/repeats; the clamped current card never duplicates in Up next.
 reset([make(1), make(2)]); mount(); await fresh(); fireEvent.click(screen.getByRole('button', { name: 'Next item' })); rows = [rows[1]]; await refresh(); assert.equal(screen.getAllByText('Queue action 2').length, 1); fireEvent.keyDown(screen.getByRole('button', { name: 'Dismiss', exact: true }), { key: 'r' }); fireEvent.keyDown(document.body, { key: 'r', repeat: true }); assert.equal(writes.length, 0);
 fireEvent.click(screen.getByRole('button', { name: 'Open & reply' })); await screen.findByText('Detail: item-0002'); fireEvent.keyDown(document.body, { key: 'd' }); assert.equal(writes.length, 0); fireEvent.click(screen.getByRole('button', { name: 'Back to Today' })); await fresh(); assertCount(0); assert.equal(screen.getAllByText('Queue action 2').length, 1);
+// Explicit follow-ups use only the date typed, and never create request completion.
+reset([make(1)]); mount(); await fresh(); fireEvent.click(screen.getByRole('button', { name: 'Set follow-up date' }));
+assert.equal(screen.getByLabelText('Follow-up date and time (UTC)').value, '', 'no invented default');
+assert.ok(screen.getByRole('button', { name: 'Save follow-up' }).disabled);
+fireEvent.keyDown(document.body, { key: 'r' }); assert.equal(writes.length, 0, 'shortcuts cannot dismiss an open date form');
+fireEvent.change(screen.getByLabelText('Follow-up date and time (UTC)'), { target: { value: '2030-01-02T15:30' } });
+fireEvent.click(screen.getByRole('button', { name: 'Cancel follow-up' })); assert.equal(writes.length, 0); assert.equal(screen.queryByLabelText('Follow-up date and time (UTC)'), null);
+fireEvent.click(screen.getByRole('button', { name: 'Set follow-up date' }));
+fireEvent.change(screen.getByLabelText('Follow-up date and time (UTC)'), { target: { value: '2020-01-02T15:30' } });
+fireEvent.click(screen.getByRole('button', { name: 'Save follow-up' })); await screen.findByText('Choose an exact future follow-up date and time in UTC.'); assert.equal(writes.length, 0);
+fireEvent.change(screen.getByLabelText('Follow-up date and time (UTC)'), { target: { value: '2030-01-02T15:30' } });
+holdWrite = new Promise(r => release = r); const saveFollowUp = screen.getByRole('button', { name: 'Save follow-up' }); fireEvent.click(saveFollowUp); fireEvent.click(saveFollowUp);
+await waitFor(() => assert.equal(writes.length, 1)); assertCount(0); assert.ok(screen.getByRole('button', { name: 'Cancel follow-up' }).disabled);
+await React.act(async () => { holdWrite = null; release(); }); await screen.findByText('1 handled this visit');
+assert.equal(rows[0].state, 'awaiting_reply'); assert.equal(rows[0].follow_up_at, '2030-01-02T15:30:00.000Z'); assert.equal(rows[0].resolved_at, undefined);
+assert.ok(screen.getByText(/follow-up remains open/)); assert.ok(screen.getByRole('link', { name: 'View scheduled follow-ups' }));
+assert.equal(screen.queryByLabelText('Follow-up date and time (UTC)'), null);
+fireEvent.click(screen.getByRole('button', { name: 'Undo last change' })); await screen.findByText('Last change undone.'); assert.equal(rows[0].follow_up_at, null); assert.equal(rows[0].state, 'needs_attention');
+// Changing the selected card cancels the pending form rather than applying its date to another request.
+reset([make(1), make(2)]); mount(); await fresh(); fireEvent.click(screen.getByRole('button', { name: 'Set follow-up date' }));
+fireEvent.change(screen.getByLabelText('Follow-up date and time (UTC)'), { target: { value: '2030-01-02T15:30' } });
+assert.ok(screen.getByRole('button', { name: 'Dismiss', exact: true }).disabled);
+fireEvent.click(screen.getByRole('button', { name: 'Next item' })); assert.equal(screen.queryByLabelText('Follow-up date and time (UTC)'), null); assert.equal(writes.length, 0);
+// A new inbound while a date is being chosen cannot be hidden by the old form.
+reset([make(1)]); mount(); await fresh(); fireEvent.click(screen.getByRole('button', { name: 'Set follow-up date' }));
+fireEvent.change(screen.getByLabelText('Follow-up date and time (UTC)'), { target: { value: '2030-01-02T15:30' } });
+rows[0] = { ...rows[0], last_inbound_message_id: 'newer-message', message_count: 2 };
+fireEvent.click(screen.getByRole('button', { name: 'Save follow-up' })); await screen.findByText(/Change unconfirmed/); assertCount(0); assert.equal(rows[0].state, 'needs_attention'); assert.equal(rows[0].follow_up_at, null);
+// A server failure leaves the date editable; an explicit retry reuses the same date.
+reset([make(1)]); mount(); await fresh(); fireEvent.click(screen.getByRole('button', { name: 'Set follow-up date' }));
+fireEvent.change(screen.getByLabelText('Follow-up date and time (UTC)'), { target: { value: '2030-01-02T15:30' } }); failWrite = true;
+fireEvent.click(screen.getByRole('button', { name: 'Save follow-up' })); await screen.findByText(/Change unconfirmed/); assertCount(0); assert.equal(screen.getByLabelText('Follow-up date and time (UTC)').value, '2030-01-02T15:30');
+failWrite = false; fireEvent.click(screen.getByRole('button', { name: 'Save follow-up' })); await screen.findByText('1 handled this visit'); assert.equal(writes.length, 2); assert.equal(rows[0].follow_up_at, '2030-01-02T15:30:00.000Z');
 cleanup(); client.clear(); supabase.auth.stopAutoRefresh(); await supabase.removeAllChannels(); dom.window.close();
 console.log('PASS: Today loading/error/empty/stale/partial states; exact 401-row pagination, wire-faithful 416 shrink/recovery, unseen inbound CAS; confirmed writes, duplicate-click guards, conflict-safe Undo, stale-after-save, navigation and keyboard regression');
 process.exit(0);
