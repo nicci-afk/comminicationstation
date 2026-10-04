@@ -19,15 +19,15 @@ import urllib.error
 import urllib.parse
 import urllib.request
 
-CANDIDATE = "ab56c8638a729922bd12b7264d62ea65d74f1e78"
-INTEGRATION_BASE = "e4159499072b7e3ee0e73e69d6eb9776dbe76f72"
-WEB_TREE = "3e6b8707851efff303a4cb8c08ba204c8d1d47b2"
-MANIFEST_SHA256 = "fc2c9dafe31fbbef5a99a75de58fc97ab78b943267d5293e8bdbea4dcc4c0a91"
+CANDIDATE = "bc30ebfa6a414a678ffd82901bb8e76c2344d00b"
+INTEGRATION_BASE = "a08cf9568212ceea0bbf9919dbabb818ecf78c2c"
+WEB_TREE = "af1d891f61c6569013f3f863a690d71e502249a0"
+MANIFEST_SHA256 = "10a9b1ebcdc79f6cf580cfe5e430d9a1a122f257d73c3afbd848b934a11172b2"
 REPOSITORY = "nicci-afk/comminicationstation"
-INSPECT_BRANCH = "feat/evidence-backed-reply-review"
+INSPECT_BRANCH = "fix/reply-frontend-standalone"
 CI_RUNS = [
-    ("37170905326", ".github/workflows/mcc-validation.yml", {"Phase 1 + Phase 1.5 safety suite", "Phase 3B Focus and capture candidate", "Phase 3B isolated Supabase and browser", "Historical checkpoint and containment runtime preflight"}),
-    ("37170905299", ".github/workflows/mcc-reply-validation.yml", {"Reply deterministic and UI suite", "Reply native and browser (main)", "Reply native and browser (cutover)"}),
+    ("37177754712", ".github/workflows/mcc-validation.yml", {"Phase 1 + Phase 1.5 safety suite", "Phase 3B Focus and capture candidate", "Phase 3B isolated Supabase and browser", "Historical checkpoint and containment runtime preflight", "Gmail generation native fencing and exact runtime"}),
+    ("37177754781", ".github/workflows/mcc-reply-validation.yml", {"Reply deterministic and UI suite", "Reply native and browser (main)", "Reply native and browser (cutover)"}),
 ]
 PROJECT = "prj_kypK3A8FOS9XdLadXmAr6pUHW7hA"
 TEAM = "team_VyloIj0OJAb3IN63CmPGvqeG"
@@ -41,6 +41,10 @@ BASELINE_URL = "message-command-center-10eevqlgv-agentedge.vercel.app"
 # The inline-source baseline has no generated Git-branch alias.
 RELEASE_AUTHORIZATION = "APPROVED"
 ROLLBACK_AUTHORIZATION = "NOT_GRANTED"
+# Exactly one failed attempt has been reconciled; any other later deployment blocks.
+RECONCILED_FAILURE_ID = "dpl_HVJXbgvZXigQ3E8vTmfiF82YMGbq"
+RECONCILED_FAILURE_CREATED_AT = 1791088394627
+RECONCILED_FAILURE_META = {"mccSourceCommit":"ab56c8638a729922bd12b7264d62ea65d74f1e78", "mccSourceTree":"3e6b8707851efff303a4cb8c08ba204c8d1d47b2", "mccSourceManifest":"fc2c9dafe31fbbef5a99a75de58fc97ab78b943267d5293e8bdbea4dcc4c0a91", "mccControllerRun":"37177328209"}
 EXPECTED_SETTINGS = {"rootDirectory": ".", "framework": "vite", "buildCommand": "AUTO", "installCommand": "AUTO", "outputDirectory": "AUTO", "nodeVersion": "24.x", "gitConnection": None}
 
 
@@ -103,7 +107,7 @@ def git(*args):
 def validate_files(records):
     """Validate and base64-encode an immutable Git tree's regular files only."""
     files, manifest = [], []
-    require(len(records) == 30, "Unexpected candidate source file count")
+    require(len(records) == 31, "Unexpected candidate source file count")
     seen = set()
     for name, mode, data in sorted(records):
         parts = PurePosixPath(name).parts
@@ -193,7 +197,16 @@ def verify_ci(api):
 
 def verify_no_later_deployment(api):
     response = api.json("vercel", f"/v6/deployments?projectId={PROJECT}&target=production&since={BASELINE_CREATED_AT + 1}&limit=100")
-    require(response.get("deployments") == [], "A post-baseline production deployment exists, possibly from an uncertain request; reconcile before release")
+    deployments = response.get("deployments")
+    pagination = response.get("pagination")
+    require(isinstance(pagination, dict) and pagination.get("next") is None and type(pagination.get("count")) in (int, str) and str(pagination.get("count")) == "1", "Post-baseline deployment inventory incomplete or changed")
+    # /v6/deployments uses uid, unlike the full /v13/deployments response's id.
+    require(isinstance(deployments, list) and len(deployments) == 1 and deployments[0].get("uid") == RECONCILED_FAILURE_ID and deployments[0].get("state") == "ERROR", "An unreconciled post-baseline deployment exists; no retry permitted")
+    failed = api.deployment(RECONCILED_FAILURE_ID)
+    require(failed.get("id") == RECONCILED_FAILURE_ID and failed.get("projectId") == PROJECT and failed.get("target") == "production" and failed.get("readyState") == "ERROR" and failed.get("createdAt") == RECONCILED_FAILURE_CREATED_AT, "Reconciled failed deployment identity or terminal state changed")
+    require(all(failed.get("meta", {}).get(key) == value for key, value in RECONCILED_FAILURE_META.items()), "Reconciled failed deployment provenance changed")
+    for domain in DOMAINS:
+        require(api.deployment(domain).get("id") == BASELINE_ID, "Baseline no longer owns a production domain; no retry permitted")
 
 
 def verify_live(api, current_id, candidate=False, auto_assignment=True):

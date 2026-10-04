@@ -16,7 +16,7 @@ on:
         type: string
         required: false
       confirmation:
-        description: 'deploy: ab56c8638a729922bd12b7264d62ea65d74f1e78; rollback: not authorized'
+        description: 'deploy: bc30ebfa6a414a678ffd82901bb8e76c2344d00b; rollback: not authorized'
         type: string
         required: false
 
@@ -48,5 +48,5 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          echo 'e09ccc8c7a8d97b126415e8e93381ffd5ce3fc665fe3a5eeddc0c5dfc2b5683d  scripts/mcc_frontend_release.py' | sha256sum --check --strict
+          echo '56e5d6084eefcec3ae1940a2601cebb9eed6d68b12e7929dbb0109d9b7a552eb  scripts/mcc_frontend_release.py' | sha256sum --check --strict
           python3 scripts/mcc_frontend_release.py

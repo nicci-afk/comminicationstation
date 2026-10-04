@@ -57,7 +57,7 @@ def records():
 
 class FakeAPI:
     def __init__(self, operation='deploy', failure=None):
-        self.operation=operation;self.failure=failure;self.posts=[];self.mutated=False;self.later=[]
+        self.operation=operation;self.failure=failure;self.posts=[];self.mutated=False;self.later=[{'uid':m.RECONCILED_FAILURE_ID,'state':'ERROR'}]
     def json(self, service, path, body=None):
         if body is not None:
             self.posts.append((path,body))
@@ -70,13 +70,14 @@ class FakeAPI:
             if '/jobs?' in path:return {'total_count':len(run[2]),'jobs':[{'name':n,'status':'completed','conclusion':'success'} for n in run[2]]}
             return {'head_sha':m.CANDIDATE,'status':'completed','conclusion':'success','path':run[1]}
         if '/domains?' in path:return copy.deepcopy(DOMAIN)
-        if path.startswith('/v6/deployments?'):return {'deployments':self.later}
+        if path.startswith('/v6/deployments?'):return {'pagination':{'count':len(self.later),'next':None},'deployments':self.later}
         if path.startswith('/v9/projects/'):
             value=copy.deepcopy(PROJECT)
             if self.operation=='rollback' and self.mutated:value['autoAssignCustomDomains']=False
             return value
         raise AssertionError(path)
     def deployment(self, identity):
+        if identity==m.RECONCILED_FAILURE_ID:return {'id':identity,'projectId':m.PROJECT,'target':'production','readyState':'ERROR','createdAt':m.RECONCILED_FAILURE_CREATED_AT,'meta':copy.deepcopy(m.RECONCILED_FAILURE_META)}
         if identity in (m.BASELINE_ID,m.BASELINE_URL):return copy.deepcopy(BASELINE)
         if identity==m.DOMAINS[0]:
             return copy.deepcopy(CANDIDATE if ((self.operation=='deploy' and self.mutated) or (self.operation=='rollback' and not self.mutated)) else BASELINE)
@@ -138,8 +139,8 @@ class ControllerTests(unittest.TestCase):
         for key in ('mccSourceCommit','mccSourceTree','mccSourceManifest'):
             value=copy.deepcopy(BASELINE);value['meta'][key]='wrong'
             with self.subTest(key=key),self.assertRaises(RuntimeError):m.deployment_identity(value,m.BASELINE_ID)
-    def test_seven_checks_and_distinct_receipts(self):
-        self.assertEqual(len(m.CI_RUNS),2);self.assertEqual(sum(len(x[2]) for x in m.CI_RUNS),7)
+    def test_eight_checks_and_distinct_receipts(self):
+        self.assertEqual(len(m.CI_RUNS),2);self.assertEqual(sum(len(x[2]) for x in m.CI_RUNS),8)
         self.assertEqual(len({x[0] for x in m.CI_RUNS}),2)
         for run_id,_,_ in m.CI_RUNS:
             api=FakeAPI();base=api.json
@@ -158,7 +159,7 @@ class ControllerTests(unittest.TestCase):
         self.assertIn('"diff", "--exit-code", CANDIDATE, "HEAD", "--", "apps/web"',source)
     def test_exact_manifest_and_remote_tree(self):
         source=records();files,manifest=m.validate_files(source)
-        self.assertEqual(len(files),30);self.assertEqual(sum(x['size'] for x in manifest),326536)
+        self.assertEqual(len(files),31);self.assertEqual(sum(x['size'] for x in manifest),344823)
         self.assertEqual(m.digest(manifest),m.MANIFEST_SHA256)
         self.assertEqual(subprocess.check_output(['git','-C',str(FIXTURE),'rev-parse','HEAD:apps/web'],text=True).strip(),m.WEB_TREE)
         for item, (_,_,source) in zip(files, sorted(records())):
@@ -209,6 +210,27 @@ class ControllerTests(unittest.TestCase):
         api=FakeAPI();m.verify_no_later_deployment(api)
         api.later=[{'id':'dpl_Pending','state':'QUEUED'}]
         with self.assertRaises(RuntimeError):m.verify_no_later_deployment(api)
+    def test_only_exact_terminal_failed_attempt_is_reconciled(self):
+        for later in ([],[{'uid':'dpl_Other','state':'ERROR'}],[{'uid':m.RECONCILED_FAILURE_ID,'state':'BUILDING'}],[{'uid':m.RECONCILED_FAILURE_ID,'state':'ERROR'}]*2):
+            api=FakeAPI();api.later=later
+            with self.subTest(later=later),self.assertRaises(RuntimeError):m.verify_no_later_deployment(api)
+        for field,value in [('readyState','READY'),('readyState','BUILDING'),('projectId','wrong'),('target','preview'),('createdAt',0),('meta',{})]:
+            api=FakeAPI();base=api.deployment
+            def deployment(identity):
+                result=base(identity)
+                if identity==m.RECONCILED_FAILURE_ID:result[field]=value
+                return result
+            api.deployment=deployment
+            with self.subTest(field=field,value=value),self.assertRaises(RuntimeError):m.verify_no_later_deployment(api)
+        api=FakeAPI();base=api.json
+        def paged(service,path,body=None):
+            result=base(service,path,body)
+            if path.startswith('/v6/deployments?'):result['pagination']['next']=123
+            return result
+        api.json=paged
+        with self.assertRaises(RuntimeError):m.verify_no_later_deployment(api)
+        api=FakeAPI('rollback')
+        with self.assertRaises(RuntimeError):m.verify_no_later_deployment(api)
     def test_domain_current_release_drift_fails(self):
         api=FakeAPI();m.verify_live(api,m.BASELINE_ID)
         with self.assertRaises(RuntimeError):m.verify_live(api,NEW_ID,True)
@@ -216,7 +238,7 @@ class ControllerTests(unittest.TestCase):
         with self.assertRaises(RuntimeError):m.verify_live(api,'dpl_Unrelated',True)
     def run_main(self, api, operation='deploy'):
         env={**BASE_ENV,'OPERATION':operation,'CONFIRMATION':m.CANDIDATE if operation=='deploy' else m.BASELINE_ID,'RELEASE_DEPLOYMENT_ID':NEW_ID if operation=='rollback' else ''}
-        with tempfile.TemporaryDirectory() as d,cwd(d),patch.dict(os.environ,env,clear=True),patch.object(m,'API',return_value=api),patch.object(m,'RELEASE_AUTHORIZATION','APPROVED'),patch.object(m,'ROLLBACK_AUTHORIZATION','APPROVED'),patch.object(m,'git',return_value=b''),patch.object(m.subprocess,'run'),patch.object(m,'source_payload',return_value=({'files':[]},[{}]*30)),patch.object(m,'smoke'),patch.object(m.time,'sleep'),contextlib.redirect_stdout(io.StringIO()):
+        with tempfile.TemporaryDirectory() as d,cwd(d),patch.dict(os.environ,env,clear=True),patch.object(m,'API',return_value=api),patch.object(m,'RELEASE_AUTHORIZATION','APPROVED'),patch.object(m,'ROLLBACK_AUTHORIZATION','APPROVED'),patch.object(m,'git',return_value=b''),patch.object(m.subprocess,'run'),patch.object(m,'source_payload',return_value=({'files':[]},[{}]*31)),patch.object(m,'smoke'),patch.object(m.time,'sleep'),contextlib.redirect_stdout(io.StringIO()):
             m.main()
     def test_inspect_has_zero_posts(self):
         api=FakeAPI();self.run_main(api,'inspect');self.assertEqual(api.posts,[])
