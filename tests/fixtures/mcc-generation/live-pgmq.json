@@ -1,0 +1,67 @@
+{
+  "sync_queue": {
+    "rls": false,
+    "owner": "postgres",
+    "logged": true
+  },
+  "jobs_dead_columns": [
+    {
+      "name": "id",
+      "type": "int8",
+      "nullable": "NO"
+    },
+    {
+      "name": "queue",
+      "type": "text",
+      "nullable": "NO"
+    },
+    {
+      "name": "msg_id",
+      "type": "int8",
+      "nullable": "NO"
+    },
+    {
+      "name": "message",
+      "type": "jsonb",
+      "nullable": "NO"
+    },
+    {
+      "name": "error",
+      "type": "text",
+      "nullable": "NO"
+    },
+    {
+      "name": "created_at",
+      "type": "timestamptz",
+      "nullable": "NO"
+    }
+  ],
+  "exposed_api_schemas": null,
+  "message_record_columns": [
+    {
+      "name": "msg_id",
+      "type": "bigint"
+    },
+    {
+      "name": "read_ct",
+      "type": "integer"
+    },
+    {
+      "name": "enqueued_at",
+      "type": "timestamp with time zone"
+    },
+    {
+      "name": "vt",
+      "type": "timestamp with time zone"
+    },
+    {
+      "name": "message",
+      "type": "jsonb"
+    },
+    {
+      "name": "headers",
+      "type": "jsonb"
+    }
+  ],
+  "pgmq_format_definition": "CREATE OR REPLACE FUNCTION pgmq.format_table_name(queue_name text, prefix text)\n RETURNS text\n LANGUAGE plpgsql\nAS $function$\nBEGIN\n    IF queue_name ~ '\\$|;|--|'''\n    THEN\n        RAISE EXCEPTION 'queue name contains invalid characters: $, ;, --, or \\''';\n    END IF;\n    RETURN lower(prefix || '_' || queue_name);\nEND;\n$function$\n"
+}

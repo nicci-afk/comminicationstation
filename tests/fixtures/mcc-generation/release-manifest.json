@@ -1,0 +1,409 @@
+{
+  "schema_version": 2,
+  "repository": "nicci-afk/comminicationstation",
+  "source_base_commit": "f913bd8c208cce1fd4c42a3f14a5141d89d55ea0",
+  "project_id": "bgpjpomqrnwsdmrofudb",
+  "release_scope": "gmail_generation_mutation_fence_v1",
+  "expected_changed_files": {
+    "api": [
+      "api/_shared/util.ts"
+    ],
+    "workers": [
+      "_shared/util.ts",
+      "gmail-sync-worker.ts",
+      "sync-job-runtime.ts"
+    ]
+  },
+  "functions": {
+    "api": {
+      "entrypoint_path": "api/index.ts",
+      "import_map_path": "api/deno.json",
+      "verify_jwt": false,
+      "baseline_version": 23,
+      "baseline_bundle_sha256": "6ffcc7bd8cb33edfa09459f174bfedf24f4e76b0418d783228f0512360a5c2e9",
+      "files": [
+        {
+          "name": "api/_shared/agentedge-safety.ts",
+          "repository_path": "supabase/functions/api/_shared/agentedge-safety.ts",
+          "baseline_git_blob": "2df3d66967fcd8872a95c76143f73b10a9a6992e",
+          "baseline_sha256": "3cf5d97a2ae57c724a81ef527dc9b3e937bc589c82ea5642b2fd1acfd612aa74",
+          "candidate_sha256": "3cf5d97a2ae57c724a81ef527dc9b3e937bc589c82ea5642b2fd1acfd612aa74"
+        },
+        {
+          "name": "api/_shared/gmail.ts",
+          "repository_path": "supabase/functions/api/_shared/gmail.ts",
+          "baseline_git_blob": "db82e02b892b7e25c35cd650869ad9eba63e345a",
+          "baseline_sha256": "79313426061ebbe89a5c9baafcf662e162d48d2e9d6d1483a41fc6ce1db00e6f",
+          "candidate_sha256": "79313426061ebbe89a5c9baafcf662e162d48d2e9d6d1483a41fc6ce1db00e6f"
+        },
+        {
+          "name": "api/_shared/llm.ts",
+          "repository_path": "supabase/functions/api/_shared/llm.ts",
+          "baseline_git_blob": "5d6aebece807680d78952d46bf5d689747d978af",
+          "baseline_sha256": "0e154c999b5e51a889ae37f1b1459ea8482702579391cf9942c26ecf4368575b",
+          "candidate_sha256": "0e154c999b5e51a889ae37f1b1459ea8482702579391cf9942c26ecf4368575b"
+        },
+        {
+          "name": "api/_shared/prompts.ts",
+          "repository_path": "supabase/functions/api/_shared/prompts.ts",
+          "baseline_git_blob": "66ce71bb7a3f4e5932b9326fa09932dfa24fbfe4",
+          "baseline_sha256": "939c1f947d2adb338e4c97ee664ca4f172882c31fea73d56dba9cfcefdace200",
+          "candidate_sha256": "939c1f947d2adb338e4c97ee664ca4f172882c31fea73d56dba9cfcefdace200"
+        },
+        {
+          "name": "api/_shared/schemas/comm.ts",
+          "repository_path": "supabase/functions/api/_shared/schemas/comm.ts",
+          "baseline_git_blob": "02323c53879b37b5a425305ae5d421a103ac60d9",
+          "baseline_sha256": "6e64c7860c88ea497de9bd58df6af6d7dbbe951692fd4cc7a89a218bb7d88662",
+          "candidate_sha256": "6e64c7860c88ea497de9bd58df6af6d7dbbe951692fd4cc7a89a218bb7d88662"
+        },
+        {
+          "name": "api/_shared/schemas/confidence.ts",
+          "repository_path": "supabase/functions/api/_shared/schemas/confidence.ts",
+          "baseline_git_blob": "5dc745d169d2dccaca81e9d82edd4213accaa1d2",
+          "baseline_sha256": "317852d09a3afcdd7539db7be4648830d67ef29b9659fcce6b4ebf516421e80f",
+          "candidate_sha256": "317852d09a3afcdd7539db7be4648830d67ef29b9659fcce6b4ebf516421e80f"
+        },
+        {
+          "name": "api/_shared/util.ts",
+          "repository_path": "supabase/functions/api/_shared/util.ts",
+          "baseline_git_blob": "55f23ba18a54593dac7180f49c7ae313c9651567",
+          "baseline_sha256": "fb5e00cce4020a54fdb458e0d4f34a6fb21dd9ff0ffbcaad45cc8d90d7f08e64",
+          "candidate_sha256": "09d8b9824e5df4a0d522c10e6f445e369804e610998abccee396b9157bd8c2b4"
+        },
+        {
+          "name": "api/admin-config.ts",
+          "repository_path": "supabase/functions/api/admin-config.ts",
+          "baseline_git_blob": "7685655cddd314fde5230ab7430c22efce492c70",
+          "baseline_sha256": "dc5a973280aba9a1a9656dd90aeac738965c68b0b251906c89b2f38130c5bdaa",
+          "candidate_sha256": "dc5a973280aba9a1a9656dd90aeac738965c68b0b251906c89b2f38130c5bdaa"
+        },
+        {
+          "name": "api/agentedge-historical-import.ts",
+          "repository_path": "supabase/functions/api/agentedge-historical-import.ts",
+          "baseline_git_blob": "048c69e594d23176ff4e42a71442e2840766fdc3",
+          "baseline_sha256": "ba748353d7cf2a925b9b0e8c00afd30cdd1f1e3a6e5358ef425d8cdf94519ba2",
+          "candidate_sha256": "ba748353d7cf2a925b9b0e8c00afd30cdd1f1e3a6e5358ef425d8cdf94519ba2"
+        },
+        {
+          "name": "api/agentedge-import-strategies.ts",
+          "repository_path": "supabase/functions/api/agentedge-import-strategies.ts",
+          "baseline_git_blob": "74643c7f59bc738a5c4551a9294a80d9664edafd",
+          "baseline_sha256": "63238c56aa30a787b1c45b95351cbe33d031c56f6a7f661f0c10dcd0d5fd62ba",
+          "candidate_sha256": "63238c56aa30a787b1c45b95351cbe33d031c56f6a7f661f0c10dcd0d5fd62ba"
+        },
+        {
+          "name": "api/agentedge-relay.ts",
+          "repository_path": "supabase/functions/api/agentedge-relay.ts",
+          "baseline_git_blob": "8efcd3a7ac00dd6c4a74832e922da4744af8cd08",
+          "baseline_sha256": "437eff1f7721e87cd1571d9735371bbb23f9692f39478bd63bbac5c21f17f379",
+          "candidate_sha256": "437eff1f7721e87cd1571d9735371bbb23f9692f39478bd63bbac5c21f17f379"
+        },
+        {
+          "name": "api/agentedge-sync.ts",
+          "repository_path": "supabase/functions/api/agentedge-sync.ts",
+          "baseline_git_blob": "57d7da9ab15296ee9d1ebd1cd3e9b5383b6e79e8",
+          "baseline_sha256": "c8e15902b4a51c7eb6f1a71b9c89c92d6043d0010baeef66854247981988e6ba",
+          "candidate_sha256": "c8e15902b4a51c7eb6f1a71b9c89c92d6043d0010baeef66854247981988e6ba"
+        },
+        {
+          "name": "api/bootstrap.ts",
+          "repository_path": "supabase/functions/api/bootstrap.ts",
+          "baseline_git_blob": "8bd7d2ee9609fbcb6f1ef40b9120ded5d4788138",
+          "baseline_sha256": "3eedb7786904b6724664a028b6ac6686edaba61d27ed8028fb396c07da8e2cbc",
+          "candidate_sha256": "3eedb7786904b6724664a028b6ac6686edaba61d27ed8028fb396c07da8e2cbc"
+        },
+        {
+          "name": "api/contact-link.ts",
+          "repository_path": "supabase/functions/api/contact-link.ts",
+          "baseline_git_blob": "b3645a5acf39ac50a85335361411fa227c7e1135",
+          "baseline_sha256": "b97049a224b2869a754c0d78cace08d4f43c88374e5e5ed54316c56b080fbcf1",
+          "candidate_sha256": "b97049a224b2869a754c0d78cace08d4f43c88374e5e5ed54316c56b080fbcf1"
+        },
+        {
+          "name": "api/contact-merge.ts",
+          "repository_path": "supabase/functions/api/contact-merge.ts",
+          "baseline_git_blob": "730d12c96e0f8fe86bc02fad39b020296f2a077b",
+          "baseline_sha256": "2bdceb1f95c4ff96187f405810364af2e8ef29245a84bc6a28f6b9b55a9e5b8d",
+          "candidate_sha256": "2bdceb1f95c4ff96187f405810364af2e8ef29245a84bc6a28f6b9b55a9e5b8d"
+        },
+        {
+          "name": "api/contacts-google-sync.ts",
+          "repository_path": "supabase/functions/api/contacts-google-sync.ts",
+          "baseline_git_blob": "0da14fcdd64bc50bb5648982ab9e2f1658a6f75f",
+          "baseline_sha256": "57cc0b74646fac3b5775d3990841f8bcdc45bd6dcba6cdef609f2545895fa598",
+          "candidate_sha256": "57cc0b74646fac3b5775d3990841f8bcdc45bd6dcba6cdef609f2545895fa598"
+        },
+        {
+          "name": "api/contacts-vcf-import.ts",
+          "repository_path": "supabase/functions/api/contacts-vcf-import.ts",
+          "baseline_git_blob": "a2329f1f8bad870a44e24a0724ee453a5901c965",
+          "baseline_sha256": "f395e23428a09533c285d50c86f11294fc843e137b6bc3bdfa81901cf0e7cf46",
+          "candidate_sha256": "f395e23428a09533c285d50c86f11294fc843e137b6bc3bdfa81901cf0e7cf46"
+        },
+        {
+          "name": "api/deno.json",
+          "repository_path": "supabase/functions/api/deno.json",
+          "baseline_git_blob": "a073d779a18c232c246f0b2cf121fd78168efc2c",
+          "baseline_sha256": "2c6b592cb8e6bf87667cadd52bc76ee3b16e26f068776c4741502cbdadaead4b",
+          "candidate_sha256": "2c6b592cb8e6bf87667cadd52bc76ee3b16e26f068776c4741502cbdadaead4b"
+        },
+        {
+          "name": "api/draft-reply.ts",
+          "repository_path": "supabase/functions/api/draft-reply.ts",
+          "baseline_git_blob": "48082a0cff88dc528704799f4609055c9f3be25a",
+          "baseline_sha256": "c69336bea159025216113fa18ee0eca34a2eb0e223f7802c2deaf9cf3521bb50",
+          "candidate_sha256": "c69336bea159025216113fa18ee0eca34a2eb0e223f7802c2deaf9cf3521bb50"
+        },
+        {
+          "name": "api/gmail-deep-backfill.ts",
+          "repository_path": "supabase/functions/api/gmail-deep-backfill.ts",
+          "baseline_git_blob": "417fae907efbcc379bb7b3a54d122fc0a7ccbf65",
+          "baseline_sha256": "1cd76ff37a20683fb21b8ad979459b3fb1dc9958c6239bf006b1d72ec38ed888",
+          "candidate_sha256": "1cd76ff37a20683fb21b8ad979459b3fb1dc9958c6239bf006b1d72ec38ed888"
+        },
+        {
+          "name": "api/gmail-get-body.ts",
+          "repository_path": "supabase/functions/api/gmail-get-body.ts",
+          "baseline_git_blob": "dcf854030d222b1a987f5a207ae42aa8c1b6dfde",
+          "baseline_sha256": "019ec184b746e768ebfc3dc2ea9cf38ec5cc6535ceb413401f8ec1bcc0cdd4f3",
+          "candidate_sha256": "019ec184b746e768ebfc3dc2ea9cf38ec5cc6535ceb413401f8ec1bcc0cdd4f3"
+        },
+        {
+          "name": "api/gmail-oauth-callback.ts",
+          "repository_path": "supabase/functions/api/gmail-oauth-callback.ts",
+          "baseline_git_blob": "ce631c9dc4bf753823135cf15677809009112448",
+          "baseline_sha256": "a2da4659f777bbb9468e05c6b25f2f84089f0d793c579db6078ce05e384d0112",
+          "candidate_sha256": "a2da4659f777bbb9468e05c6b25f2f84089f0d793c579db6078ce05e384d0112"
+        },
+        {
+          "name": "api/gmail-oauth-start.ts",
+          "repository_path": "supabase/functions/api/gmail-oauth-start.ts",
+          "baseline_git_blob": "0c9733d45e06121c54501a88f9985719c419b8d1",
+          "baseline_sha256": "c6e465fe148d717cc548f75b1910e4f2249fecdd2774b642f7aabcd153e66025",
+          "candidate_sha256": "c6e465fe148d717cc548f75b1910e4f2249fecdd2774b642f7aabcd153e66025"
+        },
+        {
+          "name": "api/gmail-push.ts",
+          "repository_path": "supabase/functions/api/gmail-push.ts",
+          "baseline_git_blob": "aff4e36ae54b6d1438ee46bb7e2b526cc541f5c4",
+          "baseline_sha256": "42671ed8ccb9c51777a08e261ffb18ae7456cbe3a459f404600f861c02f145b8",
+          "candidate_sha256": "42671ed8ccb9c51777a08e261ffb18ae7456cbe3a459f404600f861c02f145b8"
+        },
+        {
+          "name": "api/gmail-send.ts",
+          "repository_path": "supabase/functions/api/gmail-send.ts",
+          "baseline_git_blob": "cd0f2ef516b3902957d42f3676121c7301d32796",
+          "baseline_sha256": "e08519031c0a6ad0373d32f28d37873a80dce9e2d877b7894de17d028d7f1dbf",
+          "candidate_sha256": "e08519031c0a6ad0373d32f28d37873a80dce9e2d877b7894de17d028d7f1dbf"
+        },
+        {
+          "name": "api/index.ts",
+          "repository_path": "supabase/functions/api/index.ts",
+          "baseline_git_blob": "dc32f0572f2fd3354ba6dc8ff1ae701baaf34fa0",
+          "baseline_sha256": "98425a80833e2e84cd49958985aba1eb7c5f4c050141ac7df345593826473568",
+          "candidate_sha256": "98425a80833e2e84cd49958985aba1eb7c5f4c050141ac7df345593826473568"
+        },
+        {
+          "name": "api/interaction-update.ts",
+          "repository_path": "supabase/functions/api/interaction-update.ts",
+          "baseline_git_blob": "fc280b96a17a47d6f3bce4ac243ab351b01dbeb3",
+          "baseline_sha256": "8ac211d48edb1802857decd62b485c67d84e9f885b64660d9a0b1372445adf36",
+          "candidate_sha256": "8ac211d48edb1802857decd62b485c67d84e9f885b64660d9a0b1372445adf36"
+        },
+        {
+          "name": "api/mcc-fast-capture.ts",
+          "repository_path": "supabase/functions/api/mcc-fast-capture.ts",
+          "baseline_git_blob": "2da05d10a6faf993189f48a2af4dd2e7e4347090",
+          "baseline_sha256": "4e7a0abfbab3c90af64cc465458bd0e54f66f190943894dcb55f408c28d02e3d",
+          "candidate_sha256": "4e7a0abfbab3c90af64cc465458bd0e54f66f190943894dcb55f408c28d02e3d"
+        },
+        {
+          "name": "api/mcc-obligation-action.ts",
+          "repository_path": "supabase/functions/api/mcc-obligation-action.ts",
+          "baseline_git_blob": "4f5ca63be98df1123e211c9324c3c1d97f5c8fda",
+          "baseline_sha256": "f70855f2739380e1c28624cb442b9c2b8f40a6cf0aad90dc7b5bfe981355563a",
+          "candidate_sha256": "f70855f2739380e1c28624cb442b9c2b8f40a6cf0aad90dc7b5bfe981355563a"
+        },
+        {
+          "name": "api/pipeline-start.ts",
+          "repository_path": "supabase/functions/api/pipeline-start.ts",
+          "baseline_git_blob": "a3fa3257c95b7defee5f879385ec5967f43d76c1",
+          "baseline_sha256": "d1d702ced42755357db7040383d60ddbe5bbd00910205f66f0116b7392408793",
+          "candidate_sha256": "d1d702ced42755357db7040383d60ddbe5bbd00910205f66f0116b7392408793"
+        },
+        {
+          "name": "api/spam-block.ts",
+          "repository_path": "supabase/functions/api/spam-block.ts",
+          "baseline_git_blob": "84ce8764201f4042262ee98cb780f911cdc48b86",
+          "baseline_sha256": "e2197f5f111851c23ef7307b80934d53f168ae6b80f04a43175b9edab45f92d4",
+          "candidate_sha256": "e2197f5f111851c23ef7307b80934d53f168ae6b80f04a43175b9edab45f92d4"
+        },
+        {
+          "name": "api/twilio-inbound.ts",
+          "repository_path": "supabase/functions/api/twilio-inbound.ts",
+          "baseline_git_blob": "a2a224ff32245c48802796978fbb464c9c31d623",
+          "baseline_sha256": "c29e704a0be15f1e454fe58fcbfe588f4896fb91402d88d9f3765dfc5c4ba5ff",
+          "candidate_sha256": "c29e704a0be15f1e454fe58fcbfe588f4896fb91402d88d9f3765dfc5c4ba5ff"
+        },
+        {
+          "name": "api/twilio-provision.ts",
+          "repository_path": "supabase/functions/api/twilio-provision.ts",
+          "baseline_git_blob": "dfc0f24087c92c29b735ea3708328cb7031ad19e",
+          "baseline_sha256": "29f98550292e5b303d35d29f286e0bd504a0224356809078d36659c23064dfdc",
+          "candidate_sha256": "29f98550292e5b303d35d29f286e0bd504a0224356809078d36659c23064dfdc"
+        },
+        {
+          "name": "api/twilio-send.ts",
+          "repository_path": "supabase/functions/api/twilio-send.ts",
+          "baseline_git_blob": "3811623370c8fbeab660e517626bebcf8bbb732e",
+          "baseline_sha256": "0c623c6f5306b46023d910b2825ea503a8985cb0eba639b61b90b1f077b02434",
+          "candidate_sha256": "0c623c6f5306b46023d910b2825ea503a8985cb0eba639b61b90b1f077b02434"
+        }
+      ]
+    },
+    "workers": {
+      "entrypoint_path": "index.ts",
+      "import_map_path": "deno.json",
+      "verify_jwt": false,
+      "baseline_version": 17,
+      "baseline_bundle_sha256": "35e27bb0385cca1611b4c728dee4e105aece891c43b79b7bfde6a33c290a8551",
+      "files": [
+        {
+          "name": "_shared/agentedge-push.ts",
+          "repository_path": "supabase/functions/api/_shared/agentedge-push.ts",
+          "baseline_git_blob": "ba109ad2314cc08d79726f28036ad0d789924362",
+          "baseline_sha256": "f5cfa21190ed3a712668490e87e76393209f067be02a1b187b377ddba0f1bae0",
+          "candidate_sha256": "f5cfa21190ed3a712668490e87e76393209f067be02a1b187b377ddba0f1bae0"
+        },
+        {
+          "name": "_shared/agentedge-safety.ts",
+          "repository_path": "supabase/functions/api/_shared/agentedge-safety.ts",
+          "baseline_git_blob": "2df3d66967fcd8872a95c76143f73b10a9a6992e",
+          "baseline_sha256": "3cf5d97a2ae57c724a81ef527dc9b3e937bc589c82ea5642b2fd1acfd612aa74",
+          "candidate_sha256": "3cf5d97a2ae57c724a81ef527dc9b3e937bc589c82ea5642b2fd1acfd612aa74"
+        },
+        {
+          "name": "_shared/gmail.ts",
+          "repository_path": "supabase/functions/api/_shared/gmail.ts",
+          "baseline_git_blob": "db82e02b892b7e25c35cd650869ad9eba63e345a",
+          "baseline_sha256": "79313426061ebbe89a5c9baafcf662e162d48d2e9d6d1483a41fc6ce1db00e6f",
+          "candidate_sha256": "79313426061ebbe89a5c9baafcf662e162d48d2e9d6d1483a41fc6ce1db00e6f"
+        },
+        {
+          "name": "_shared/llm.ts",
+          "repository_path": "supabase/functions/api/_shared/llm.ts",
+          "baseline_git_blob": "5d6aebece807680d78952d46bf5d689747d978af",
+          "baseline_sha256": "0e154c999b5e51a889ae37f1b1459ea8482702579391cf9942c26ecf4368575b",
+          "candidate_sha256": "0e154c999b5e51a889ae37f1b1459ea8482702579391cf9942c26ecf4368575b"
+        },
+        {
+          "name": "_shared/prompts.ts",
+          "repository_path": "supabase/functions/api/_shared/prompts.ts",
+          "baseline_fixture": "tests/fixtures/mcc-agentedge/workers-v16-prompts.ts",
+          "candidate_fixture": "tests/fixtures/mcc-agentedge/workers-v16-prompts.ts",
+          "baseline_git_blob": "bf24785cdacd39f0b83cac8bc14374ac40742029",
+          "baseline_sha256": "23cb2e3a9318407960133951b1b23c7e1c5ca3b8f40f1c82c0882fde94b757a3",
+          "candidate_sha256": "23cb2e3a9318407960133951b1b23c7e1c5ca3b8f40f1c82c0882fde94b757a3"
+        },
+        {
+          "name": "_shared/schemas/comm.ts",
+          "repository_path": "supabase/functions/api/_shared/schemas/comm.ts",
+          "baseline_git_blob": "02323c53879b37b5a425305ae5d421a103ac60d9",
+          "baseline_sha256": "6e64c7860c88ea497de9bd58df6af6d7dbbe951692fd4cc7a89a218bb7d88662",
+          "candidate_sha256": "6e64c7860c88ea497de9bd58df6af6d7dbbe951692fd4cc7a89a218bb7d88662"
+        },
+        {
+          "name": "_shared/schemas/confidence.ts",
+          "repository_path": "supabase/functions/api/_shared/schemas/confidence.ts",
+          "baseline_git_blob": "5dc745d169d2dccaca81e9d82edd4213accaa1d2",
+          "baseline_sha256": "317852d09a3afcdd7539db7be4648830d67ef29b9659fcce6b4ebf516421e80f",
+          "candidate_sha256": "317852d09a3afcdd7539db7be4648830d67ef29b9659fcce6b4ebf516421e80f"
+        },
+        {
+          "name": "_shared/schemas/packets.ts",
+          "repository_path": "supabase/functions/api/_shared/schemas/packets.ts",
+          "baseline_git_blob": "747849e67c69b47c98b1ad8a4c3da035baffca37",
+          "baseline_sha256": "8ca07877eb5fd7944c2338551cf2aa294c49c790f7d691ae0f7bbe2186ad614f",
+          "candidate_sha256": "8ca07877eb5fd7944c2338551cf2aa294c49c790f7d691ae0f7bbe2186ad614f"
+        },
+        {
+          "name": "_shared/schemas/perplexity.ts",
+          "repository_path": "supabase/functions/api/_shared/schemas/perplexity.ts",
+          "baseline_git_blob": "ea8b647220a754fe16c2c408c3bff68f464d4742",
+          "baseline_sha256": "15bb7f2a18f2383b8af8ee7ee4e964d51474278ce94dda9cf6cdcc1e15e876e0",
+          "candidate_sha256": "15bb7f2a18f2383b8af8ee7ee4e964d51474278ce94dda9cf6cdcc1e15e876e0"
+        },
+        {
+          "name": "_shared/schemas/persona.ts",
+          "repository_path": "supabase/functions/api/_shared/schemas/persona.ts",
+          "baseline_git_blob": "d43675069e9ce257ae798ec5a9c11318b00ceb7a",
+          "baseline_sha256": "6147519d9d8d664d611bba522c3677e601d9fa42fe696d1020ff7268fa3ab04a",
+          "candidate_sha256": "6147519d9d8d664d611bba522c3677e601d9fa42fe696d1020ff7268fa3ab04a"
+        },
+        {
+          "name": "_shared/schemas/qc.ts",
+          "repository_path": "supabase/functions/api/_shared/schemas/qc.ts",
+          "baseline_git_blob": "a54e436369035bec73282e72bcbd81f44ce042fe",
+          "baseline_sha256": "b01feabccc389a62fe572f459a80ac327f9b81808c38bf4b9aa0986771e4e3f6",
+          "candidate_sha256": "b01feabccc389a62fe572f459a80ac327f9b81808c38bf4b9aa0986771e4e3f6"
+        },
+        {
+          "name": "_shared/util.ts",
+          "repository_path": "supabase/functions/api/_shared/util.ts",
+          "baseline_git_blob": "55f23ba18a54593dac7180f49c7ae313c9651567",
+          "baseline_sha256": "fb5e00cce4020a54fdb458e0d4f34a6fb21dd9ff0ffbcaad45cc8d90d7f08e64",
+          "candidate_sha256": "09d8b9824e5df4a0d522c10e6f445e369804e610998abccee396b9157bd8c2b4"
+        },
+        {
+          "name": "deno.json",
+          "repository_path": "supabase/functions/workers/deno.json",
+          "baseline_git_blob": "a073d779a18c232c246f0b2cf121fd78168efc2c",
+          "baseline_sha256": "2c6b592cb8e6bf87667cadd52bc76ee3b16e26f068776c4741502cbdadaead4b",
+          "candidate_sha256": "2c6b592cb8e6bf87667cadd52bc76ee3b16e26f068776c4741502cbdadaead4b"
+        },
+        {
+          "name": "digest-worker.ts",
+          "repository_path": "supabase/functions/workers/digest-worker.ts",
+          "baseline_git_blob": "4d8f3ea80cbb980cd78d59f75c6d3a01027a7661",
+          "baseline_sha256": "d6fc15600def5fc10f803ccb07aa8415105b48b42fe42631e31f06b296c9f21b",
+          "candidate_sha256": "d6fc15600def5fc10f803ccb07aa8415105b48b42fe42631e31f06b296c9f21b"
+        },
+        {
+          "name": "gmail-sync-worker.ts",
+          "repository_path": "supabase/functions/workers/gmail-sync-worker.ts",
+          "baseline_git_blob": "64c7feda3783ceaf976fb0b3b1af6932d46a6219",
+          "baseline_sha256": "acbe3f757abeb0bd0c7b42b20b90ebe8a8dcc767f60b30618ee75aa74a608cd3",
+          "candidate_sha256": "e8a9bc4db63d44ae1439f7289adf3d5cfca6a4076874ed06aa6871d39b920d92"
+        },
+        {
+          "name": "index.ts",
+          "repository_path": "supabase/functions/workers/index.ts",
+          "baseline_git_blob": "914782d4884494419d0922f49c688c0ca1029ddd",
+          "baseline_sha256": "77df24819bce177e7602d639527b801a733f5517c63aa6c2c90fe7bfe18ed631",
+          "candidate_sha256": "77df24819bce177e7602d639527b801a733f5517c63aa6c2c90fe7bfe18ed631"
+        },
+        {
+          "name": "pipeline-worker.ts",
+          "repository_path": "supabase/functions/workers/pipeline-worker.ts",
+          "baseline_git_blob": "37b6f18645301cbdfbde15623924a27e9e5592e9",
+          "baseline_sha256": "394cb53bf941f1db0ce70b8f420554dbe69d21e92a665dc69b7f410b7e4e3075",
+          "candidate_sha256": "394cb53bf941f1db0ce70b8f420554dbe69d21e92a665dc69b7f410b7e4e3075"
+        },
+        {
+          "name": "triage-worker.ts",
+          "repository_path": "supabase/functions/workers/triage-worker.ts",
+          "baseline_git_blob": "7f851546e97b18db8fe66bf4de56c49f7d4eeea1",
+          "baseline_sha256": "b7154be5c319ba754b468df9a6b3516f95ffdc74d46a6f8fbe4327b3eaecc93b",
+          "candidate_sha256": "b7154be5c319ba754b468df9a6b3516f95ffdc74d46a6f8fbe4327b3eaecc93b"
+        },
+        {
+          "name": "sync-job-runtime.ts",
+          "repository_path": "supabase/functions/workers/sync-job-runtime.ts",
+          "candidate_sha256": "8c5fd5b8297c2556cb0a553b789dea25cc98544cbcd5ae679f413659798546b7",
+          "added": true
+        }
+      ]
+    }
+  }
+}
