@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { api } from "../lib/supabase";
-import { detectReplyRisks, type Check, type Claim, type Evidence, type Draft } from "../../../../supabase/functions/api/_shared/reply-evidence";
+import { detectReplyRisks, type Check, type Claim, type Evidence, type Draft } from "../lib/replyEvidence";
 type Source = {
     direction?: "inbound" | "outbound";
     bodyMissing?: boolean;
